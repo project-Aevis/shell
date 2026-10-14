@@ -315,19 +315,31 @@ Item {
 
                 Timer {
                     id: searchTimer
-                    interval: 500
+                    interval: 150
                     repeat: false
                     onTriggered: launcherModel.search(textField.text)
                 }
 
                 onTextChanged: {
                     if (textField.text === "") {
-                        // Switch directly to normal mode
+                        searchTimer.stop()
                         launcherModel.search("")
                     } else {
                         searchTimer.start()
                     }
                 }
+
+                onAccepted: {
+                    searchTimer.stop()
+                    launcherModel.search(textField.text)
+                    if (launcherModel.count > 0 && textField.text.length > 0) {
+                        var firstAppId = launcherModel.data(launcherModel.index(0, 0), LauncherModel.AppIdRole)
+                        if (firstAppId) {
+                            launcherModel.launch(firstAppId)
+                        }
+                    }
+                }
+
                 Keys.onEscapePressed: launcher.hideWindow()
             }
         }

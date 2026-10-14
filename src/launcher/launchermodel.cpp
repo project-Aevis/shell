@@ -111,6 +111,7 @@ QVariant LauncherModel::data(const QModelIndex &index, int role) const
 
 void LauncherModel::search(const QString &key)
 {
+    beginResetModel();
     m_searchKey = key;
     m_mode = key.isEmpty() ? NormalMode : SearchMode;
     m_searchItems.clear();
@@ -126,7 +127,8 @@ void LauncherModel::search(const QString &key)
         }
     }
 
-    emit layoutChanged();
+    endResetModel();
+    emit countChanged();
 }
 
 void LauncherModel::sendToDesktop(const QString &key)
