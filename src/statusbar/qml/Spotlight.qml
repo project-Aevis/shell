@@ -305,21 +305,25 @@ PopupWindow {
                 }
 
                 function launchCurrent() {
-                    // 1. Calculator
-                    if (control.calcResult !== null && resultsList.count === 0 && control.matchedSettings.length === 0 && control.matchedCommands.length === 0) {
-                        control.close()
-                        return
+                    // 1. Desktop Application Match
+                    if (resultsList.count > 0 && resultsList.currentIndex >= 0 && resultsList.currentIndex < resultsList.count) {
+                        var appId = resultsList.model.data(resultsList.model.index(resultsList.currentIndex, 0), LauncherModel.AppIdRole)
+                        if (appId) {
+                            launcherModel.launch(appId)
+                            control.close()
+                            return
+                        }
                     }
 
                     // 2. Settings Match
-                    if (control.matchedSettings.length > 0 && (resultsList.count === 0 || resultsList.currentIndex === 0)) {
+                    if (control.matchedSettings.length > 0) {
                         process.startDetached("cutefish-settings", ["-m", control.matchedSettings[0].id])
                         control.close()
                         return
                     }
 
                     // 3. System Action Match
-                    if (control.matchedCommands.length > 0 && (resultsList.count === 0 || resultsList.currentIndex === 0)) {
+                    if (control.matchedCommands.length > 0) {
                         var cmd = control.matchedCommands[0]
                         control.close()
                         if (cmd.action === "lock") powerActions.lockScreen()
@@ -330,13 +334,10 @@ PopupWindow {
                         return
                     }
 
-                    // 4. Desktop Application Match
-                    if (resultsList.count > 0 && resultsList.currentIndex >= 0) {
-                        var appId = resultsList.model.data(resultsList.model.index(resultsList.currentIndex, 0), LauncherModel.AppIdRole)
-                        if (appId) {
-                            launcherModel.launch(appId)
-                            control.close()
-                        }
+                    // 4. Calculator
+                    if (control.calcResult !== null) {
+                        control.close()
+                        return
                     }
                 }
             }
