@@ -12,9 +12,9 @@
 int main(int argc, char *argv[])
 {
 #if defined(__linux__)
-    mallopt(M_ARENA_MAX, 2);
-    mallopt(M_TRIM_THRESHOLD, 128 * 1024);
-    mallopt(M_MMAP_THRESHOLD, 64 * 1024);
+    mallopt(M_ARENA_MAX, 1);
+    mallopt(M_TRIM_THRESHOLD, 64 * 1024);
+    mallopt(M_MMAP_THRESHOLD, 32 * 1024);
 #endif
 
     // If no NVIDIA GPU device exists, restrict EGL ICD loader to Mesa/system driver
