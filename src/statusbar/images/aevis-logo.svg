@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Dark Squircle Container (Qt-safe solid fill + border) -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112" fill="#050507" stroke="#1C1C22" stroke-width="4" />
+
+  <!-- White 3D Ring Glyph -->
+  <g fill="#FFFFFF" stroke="none">
+    <!-- Main Outer Ring (with evenodd cutout) -->
+    <path fill-rule="evenodd" d="M 256 122 A 112 112 0 1 0 256 346 A 112 112 0 1 0 256 122 Z M 256 144 A 87 87 0 1 1 256 318 A 87 87 0 1 1 256 144 Z" />
+    
+    <!-- Top Inner Crescent Ridge -->
+    <path d="M 179 224 C 185 182 217 153 256 153 C 295 153 327 182 333 224 C 322 191 292 170 256 170 C 220 170 190 191 179 224 Z" />
+    
+    <!-- Bottom Outer Crescent Base -->
+    <path d="M 161 306 C 182 342 216 360 256 360 C 296 360 330 342 351 306 C 334 354 298 380 256 380 C 214 380 178 354 161 306 Z" />
+  </g>
+</svg>

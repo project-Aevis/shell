@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aevis Shell
+Comment=Status bar, dock, launcher and desktop of the Aevis desktop
+Exec=@CMAKE_INSTALL_FULL_BINDIR@/aevis-shell
+Icon=aevis
+Terminal=false
+NoDisplay=true
+StartupWMClass=aevis-shell
+X-KDE-Wayland-Interfaces=org_kde_plasma_window_management,org_kde_plasma_activation_feedback,org_kde_plasma_shell
