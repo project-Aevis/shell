@@ -138,7 +138,7 @@ ListView {
     model: control.modelCount > 0 ? Math.ceil(control.modelCount / control.pageCount) : 0
 
     maximumFlickVelocity: 10000
-    highlightMoveDuration: 300
+    highlightMoveDuration: 240
 
     preferredHighlightBegin: 0
     preferredHighlightEnd: 0

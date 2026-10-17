@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Rebuilt macOS Notification Center Clone (Pre-Liquid Glass / Big Sur - Sonoma)
  */

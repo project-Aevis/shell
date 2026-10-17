@@ -5,6 +5,7 @@
         <file>qml/BarLabel.qml</file>
         <file>qml/StandardItem.qml</file>
         <file>qml/QMenuPopup.qml</file>
+        <file>images/aevis-logo.svg</file>
         <file>images/dark/cutefish.svg</file>
         <file>images/light/cutefish.svg</file>
         <file>images/dark/audio-volume-high-symbolic.svg</file>
@@ -35,6 +36,8 @@
         <file>images/dark/battery-level-90-symbolic.svg</file>
         <file>images/dark/bluetooth-symbolic.svg</file>
         <file>images/dark/bluetooth-off.svg</file>
+        <file>images/dark/chevron-right.svg</file>
+        <file>images/dark/network-wireless-locked.svg</file>
         <file>images/dark/airplane-mode.svg</file>
         <file>images/dark/airplane-mode-off.svg</file>
         <file>images/dark/power-mode.svg</file>
@@ -105,6 +108,8 @@
         <file>images/light/battery-level-90-symbolic.svg</file>
         <file>images/light/bluetooth-symbolic.svg</file>
         <file>images/light/bluetooth-off.svg</file>
+        <file>images/light/chevron-right.svg</file>
+        <file>images/light/network-wireless-locked.svg</file>
         <file>images/light/airplane-mode.svg</file>
         <file>images/light/airplane-mode-off.svg</file>
         <file>images/light/power-mode.svg</file>
@@ -201,6 +206,8 @@
         <file>images/dark/music.svg</file>
         <file>images/dark/pause.svg</file>
         <file>images/system-search-symbolic.svg</file>
+        <file>images/chevron-right.svg</file>
+        <file>images/network-wireless-locked.svg</file>
         <file>images/dark/network-wireless-symbolic.svg</file>
         <file>images/dark/airdrop.svg</file>
         <file>images/dark/network-wireless-disabled-symbolic.svg</file>

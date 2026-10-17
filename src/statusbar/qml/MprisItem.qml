@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Modern macOS Now Playing Media Card (Pre-Liquid Glass / Big Sur - Sonoma)
  */
@@ -107,6 +108,14 @@ Item {
             Layout.preferredHeight: 52
             Layout.alignment: Qt.AlignVCenter
 
+            Rectangle {
+                id: artMask
+                width: 52
+                height: 52
+                radius: 10
+                visible: false
+            }
+
             Image {
                 id: defaultImage
                 anchors.fill: parent
@@ -115,15 +124,11 @@ Item {
                 visible: !artImage.visible
                 fillMode: Image.PreserveAspectCrop
 
-                layer.enabled: true
+                layer.enabled: defaultImage.visible
                 layer.smooth: true
                 layer.textureSize: Qt.size(Math.ceil(width * FishUI.Dpi.ratio), Math.ceil(height * FishUI.Dpi.ratio))
                 layer.effect: OpacityMask {
-                    maskSource: Rectangle {
-                        width: 52
-                        height: 52
-                        radius: 10
-                    }
+                    maskSource: artMask
                 }
             }
 
@@ -132,18 +137,14 @@ Item {
                 anchors.fill: parent
                 visible: status === Image.Ready
                 fillMode: Image.PreserveAspectCrop
-                sourceSize: Qt.size(Math.ceil(256 * FishUI.Dpi.ratio), Math.ceil(256 * FishUI.Dpi.ratio))
+                sourceSize: Qt.size(Math.ceil(64 * FishUI.Dpi.ratio), Math.ceil(64 * FishUI.Dpi.ratio))
                 asynchronous: true
 
-                layer.enabled: true
+                layer.enabled: artImage.visible
                 layer.smooth: true
                 layer.textureSize: Qt.size(Math.ceil(width * FishUI.Dpi.ratio), Math.ceil(height * FishUI.Dpi.ratio))
                 layer.effect: OpacityMask {
-                    maskSource: Rectangle {
-                        width: 52
-                        height: 52
-                        radius: 10
-                    }
+                    maskSource: artMask
                 }
             }
 
@@ -206,23 +207,35 @@ Item {
 
         // Playback Control Buttons
         RowLayout {
-            spacing: 4
+            spacing: 6
             Layout.alignment: Qt.AlignVCenter
+            Layout.preferredHeight: 32
 
             Rectangle {
-                width: 28
-                height: 28
+                id: prevButton
+                implicitWidth: 28
+                implicitHeight: 28
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignVCenter
                 radius: 14
-                color: prevMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
-                                         : (prevMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
-                visible: mprisManager.canGoPrevious
+                visible: true
+                enabled: mprisManager.canGoPrevious || control.available
+                opacity: enabled ? 1.0 : 0.45
+                color: enabled && prevMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                                                    : (enabled && prevMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
                 antialiasing: true
+                scale: enabled && prevMouse.pressed ? 0.90 : 1.0
+
+                Behavior on scale {
+                    NumberAnimation { duration: 100 }
+                }
 
                 Image {
                     anchors.centerIn: parent
-                    width: 16
-                    height: 16
-                    sourceSize: Qt.size(Math.ceil(16 * Window.devicePixelRatio), Math.ceil(16 * Window.devicePixelRatio))
+                    width: 20
+                    height: 20
+                    sourceSize: Qt.size(Math.ceil(20 * FishUI.Dpi.ratio), Math.ceil(20 * FishUI.Dpi.ratio))
                     mipmap: false
                     smooth: true
                     antialiasing: true
@@ -232,26 +245,44 @@ Item {
                 MouseArea {
                     id: prevMouse
                     anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: if (mprisManager.canGoPrevious) mprisManager.previous()
+                    hoverEnabled: parent.enabled
+                    cursorShape: parent.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (mprisManager.canGoPrevious) {
+                            mprisManager.previous()
+                        } else if (control.available) {
+                            mprisManager.setPosition(0)
+                        }
+                    }
                 }
             }
 
             Rectangle {
-                width: 32
-                height: 32
+                id: playButton
+                implicitWidth: 32
+                implicitHeight: 32
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
+                Layout.alignment: Qt.AlignVCenter
                 radius: 16
+                visible: true
+                enabled: true
+                opacity: 1.0
                 color: playMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(0, 0, 0, 0.18))
                                          : (playMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(0, 0, 0, 0.08))
                                                                     : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.04)))
-                visible: mprisManager.canPause || mprisManager.canPlay
                 antialiasing: true
+                scale: playMouse.pressed ? 0.90 : 1.0
+
+                Behavior on scale {
+                    NumberAnimation { duration: 100 }
+                }
 
                 Image {
                     anchors.centerIn: parent
                     width: 16
                     height: 16
-                    sourceSize: Qt.size(Math.ceil(16 * Window.devicePixelRatio), Math.ceil(16 * Window.devicePixelRatio))
+                    sourceSize: Qt.size(Math.ceil(16 * FishUI.Dpi.ratio), Math.ceil(16 * FishUI.Dpi.ratio))
                     mipmap: false
                     smooth: true
                     antialiasing: true
@@ -263,28 +294,44 @@ Item {
                     id: playMouse
                     anchors.fill: parent
                     hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if ((control.isPlaying && mprisManager.canPause) || (!control.isPlaying && mprisManager.canPlay)) {
+                        if (control.available) {
                             mprisManager.playPause()
+                        } else if (mprisManager.desktopEntry && mprisManager.desktopEntry.length > 0) {
+                            process.startDetached(mprisManager.desktopEntry)
+                        } else {
+                            process.startDetached("cutefish-music")
                         }
                     }
                 }
             }
 
             Rectangle {
-                width: 28
-                height: 28
+                id: nextButton
+                implicitWidth: 28
+                implicitHeight: 28
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignVCenter
                 radius: 14
-                color: nextMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
-                                         : (nextMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
-                visible: mprisManager.canGoNext
+                visible: true
+                enabled: mprisManager.canGoNext || control.available
+                opacity: enabled ? 1.0 : 0.45
+                color: enabled && nextMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                                                    : (enabled && nextMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
                 antialiasing: true
+                scale: enabled && nextMouse.pressed ? 0.90 : 1.0
+
+                Behavior on scale {
+                    NumberAnimation { duration: 100 }
+                }
 
                 Image {
                     anchors.centerIn: parent
-                    width: 16
-                    height: 16
-                    sourceSize: Qt.size(Math.ceil(16 * Window.devicePixelRatio), Math.ceil(16 * Window.devicePixelRatio))
+                    width: 20
+                    height: 20
+                    sourceSize: Qt.size(Math.ceil(20 * FishUI.Dpi.ratio), Math.ceil(20 * FishUI.Dpi.ratio))
                     mipmap: false
                     smooth: true
                     antialiasing: true
@@ -294,8 +341,13 @@ Item {
                 MouseArea {
                     id: nextMouse
                     anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: if (mprisManager.canGoNext) mprisManager.next()
+                    hoverEnabled: parent.enabled
+                    cursorShape: parent.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (mprisManager.canGoNext) {
+                            mprisManager.next()
+                        }
+                    }
                 }
             }
         }

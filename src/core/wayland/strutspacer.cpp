@@ -149,8 +149,26 @@ void StrutSpacer::setScreen(QScreen *screen)
     update();
 }
 
+void StrutSpacer::setWaylandSurfaceEnabled(bool enabled)
+{
+    if (m_waylandSurfaceEnabled == enabled)
+        return;
+
+    m_waylandSurfaceEnabled = enabled;
+    if (!m_waylandSurfaceEnabled) {
+        destroySurface();
+    } else {
+        update();
+    }
+}
+
 void StrutSpacer::update()
 {
+    if (!m_waylandSurfaceEnabled) {
+        destroySurface();
+        return;
+    }
+
     if (m_layerSurface) {
         // Releasing the area by dropping the exclusive zone rather than by
         // unmapping the surface. Unmapping makes the compositor treat it as a

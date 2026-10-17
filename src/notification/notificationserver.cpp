@@ -126,11 +126,11 @@ QStringList NotificationServer::GetCapabilities() const
 
 QString NotificationServer::GetServerInformation(QString &vendor, QString &version, QString &specVersion) const
 {
-    vendor = "CutefishOS";
+    vendor = "Project Aevis";
     version = "1.0";
     specVersion = "1.2";
 
-    return "Cutefish";
+    return "Aevis";
 }
 
 uint NotificationServer::Inhibit(const QString &desktop_entry, const QString &reason, const QVariantMap &hints)

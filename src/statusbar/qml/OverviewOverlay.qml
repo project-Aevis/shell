@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * GNOME-Style Window Overview / Mission Control Expose Overlay with Workspace Switcher & Live Filter
  */

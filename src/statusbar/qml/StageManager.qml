@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Stage Manager - Left Edge Recent App Carousel (macOS Sequoia Style)
  */

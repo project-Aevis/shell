@@ -76,9 +76,13 @@ qt6_add_translation(QM_FILES ${TS_FILES})
 add_custom_target(translations DEPENDS ${QM_FILES} SOURCES ${TS_FILES})
 add_dependencies(cutefish-shell translations)
 install(FILES ${QM_FILES} DESTINATION /usr/share/cutefish-shell/translations)
+install(FILES ${QM_FILES} DESTINATION /usr/share/aevis-shell/translations)
 
 install(TARGETS cutefish-shell RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES data/cutefish-dock-list.conf DESTINATION /etc)
+install(FILES data/aevis-dock-list.conf DESTINATION /etc)
+
+install(CODE "execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink cutefish-shell \$ENV{DESTDIR}\${CMAKE_INSTALL_FULL_BINDIR}/aevis-shell)")
 
 # KWin only hands org_kde_plasma_window_management (the protocol the dock and
 # the status bar read the window list from) to clients whose desktop entry
@@ -87,5 +91,10 @@ install(FILES data/cutefish-dock-list.conf DESTINATION /etc)
 # a bare command name against PATH, so Exec has to be absolute.
 configure_file(data/cutefish-shell.desktop.in
                ${CMAKE_CURRENT_BINARY_DIR}/cutefish-shell.desktop @ONLY)
+configure_file(data/aevis-shell.desktop.in
+               ${CMAKE_CURRENT_BINARY_DIR}/aevis-shell.desktop @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/cutefish-shell.desktop
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/aevis-shell.desktop
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+

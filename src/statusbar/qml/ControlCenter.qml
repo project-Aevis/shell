@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * HarmonyOS-inspired Control Center UI refinement
  */
@@ -22,14 +23,19 @@ import FishUI 1.0 as FishUI
 PopupWindow {
     id: control
 
-    width: 360
-    height: _mainLayout.implicitHeight + 32
+    width: 372
+    property real baseHeight: 486
+    height: Math.max(baseHeight, mainView.implicitHeight) + 28
+
+    property string currentView: "main"
 
     property var margin: 6
     property point position: Qt.point(0, 0)
     property var defaultSink: paSinkModel.defaultSink
 
     property bool bluetoothDisConnected: Bluetooth.Manager.bluetoothBlocked
+    property string bluetoothConnectedDeviceName: ""
+    property bool bluetoothHasConnectedDevice: false
     property var defaultSinkValue: defaultSink ? defaultSink.volume / PulseAudio.NormalVolume * 100.0 : -1
 
     property bool _airdropActive: false
@@ -41,7 +47,7 @@ PopupWindow {
     property int _powerModeState: battery.powerMode
     property int _keyboardBacklightLevel: 0
 
-    property color cardBgColor: FishUI.Theme.darkMode ? Qt.rgba(0.18, 0.20, 0.26, 0.68)
+    property color cardBgColor: FishUI.Theme.darkMode ? Qt.rgba(0.18, 0.20, 0.26, 0.52)
                                                       : Qt.rgba(1, 1, 1, 0.68)
     property color cardBorderColor: FishUI.Theme.darkMode ? Qt.rgba(255, 255, 255, 0.14)
                                                           : Qt.rgba(1, 1, 1, 0.85)
@@ -66,8 +72,18 @@ PopupWindow {
     }
 
     onWidthChanged: adjustCorrectLocation()
-    onHeightChanged: adjustCorrectLocation()
     onPositionChanged: adjustCorrectLocation()
+    onVisibleChanged: {
+        if (!visible) {
+            control.currentView = "main"
+        } else {
+            control.updateBtConnectedStatus()
+        }
+    }
+
+    Component.onCompleted: {
+        control.updateBtConnectedStatus()
+    }
 
     color: "transparent"
 
@@ -88,16 +104,61 @@ PopupWindow {
     NM.NetworkModel { id: ccNetworkModel }
     NM.AppletProxyModel { id: ccWifiProxyModel; type: NM.AppletProxyModel.WirelessType; sourceModel: ccNetworkModel }
 
+    Connections {
+        target: Bluetooth.Manager
+        function onDevicesChanged() { control.updateBtConnectedStatus() }
+        function onDeviceChanged(device) { control.updateBtConnectedStatus() }
+        function onDeviceAdded(device) { control.updateBtConnectedStatus() }
+        function onDeviceRemoved(device) { control.updateBtConnectedStatus() }
+        function onBluetoothBlockedChanged() { control.updateBtConnectedStatus() }
+        function onBluetoothOperationalChanged() { control.updateBtConnectedStatus() }
+    }
+
+    Connections {
+        target: ccBtProxyModel
+        function onConnectedNameChanged() { control.updateBtConnectedStatus() }
+    }
+
+    Timer {
+        id: btRefreshTimer
+        interval: 2000
+        running: control.visible
+        repeat: true
+        onTriggered: control.updateBtConnectedStatus()
+    }
+
+    Timer {
+        id: btConnectUpdateTimer
+        interval: 1200
+        repeat: false
+        onTriggered: control.updateBtConnectedStatus()
+    }
+
     Timer {
         id: screenshotTimer
         interval: 220
         repeat: false
-        onTriggered: process.startDetached("cutefish-screenshot")
+        onTriggered: {
+            if (!process.startDetached("aevis-screenshot"))
+                process.startDetached("cutefish-screenshot")
+        }
     }
 
     function triggerScreenshot() {
         control.close()
         screenshotTimer.restart()
+    }
+
+    function openSettings(moduleName) {
+        control.close()
+        var args = moduleName ? ["-m", moduleName] : []
+        if (!process.startDetached("aevis-settings", args)) {
+            if (!process.startDetached("cutefish-settings", args)) {
+                if (!process.startDetached("systemsettings", args)) {
+                    process.startDetached("gnome-control-center")
+                }
+            }
+        }
     }
 
     function cyclePowerMode() {
@@ -139,22 +200,13 @@ PopupWindow {
         process.startDetached("tuned-adm", ["profile", tuned])
     }
 
-    Timer {
-        id: nightLightKeepAliveTimer
-        interval: 4000
-        repeat: true
-        running: control._nightLightActive
-        triggeredOnStart: true
-        onTriggered: {
-            process.startDetached("qdbus6", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.preview", "3500"])
-            process.startDetached("qdbus", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.preview", "3500"])
-            process.startDetached("sh", ["-c", "for out in $(xrandr | grep ' connected' | cut -d' ' -f1); do xrandr --output \"$out\" --gamma 1.0:0.82:0.65 2>/dev/null; done"])
-        }
-    }
-
     function toggleNightLight() {
         control._nightLightActive = !control._nightLightActive
-        if (!control._nightLightActive) {
+        if (control._nightLightActive) {
+            process.startDetached("qdbus6", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.preview", "86400000"])
+            process.startDetached("qdbus", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.preview", "86400000"])
+            process.startDetached("sh", ["-c", "for out in $(xrandr | grep ' connected' | cut -d' ' -f1); do xrandr --output \"$out\" --gamma 1.0:0.82:0.65 2>/dev/null; done"])
+        } else {
             process.startDetached("qdbus6", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.stopPreview"])
             process.startDetached("qdbus", ["org.kde.KWin", "/org/kde/KWin/NightLight", "org.kde.KWin.NightLight.stopPreview"])
             process.startDetached("sh", ["-c", "for out in $(xrandr | grep ' connected' | cut -d' ' -f1); do xrandr --output \"$out\" --gamma 1.0:1.0:1.0 2>/dev/null; done"])
@@ -226,6 +278,44 @@ PopupWindow {
         }
         process.startDetached("bluetoothctl", ["power", !control.bluetoothDisConnected ? "on" : "off"])
         process.startDetached("rfkill", [!control.bluetoothDisConnected ? "unblock" : "block", "bluetooth"])
+        control.updateBtConnectedStatus()
+    }
+
+    function updateBtConnectedStatus() {
+        if (control.bluetoothDisConnected) {
+            control.bluetoothConnectedDeviceName = ""
+            control.bluetoothHasConnectedDevice = false
+            return
+        }
+
+        var connectedNames = []
+        var anyConnected = false
+
+        if (typeof Bluetooth !== "undefined" && Bluetooth.Manager && Bluetooth.Manager.devices) {
+            for (var i = 0; i < Bluetooth.Manager.devices.length; ++i) {
+                var dev = Bluetooth.Manager.devices[i]
+                if (dev && dev.connected) {
+                    anyConnected = true
+                    var n = dev.friendlyName || dev.name
+                    if (n && n.length > 0 && connectedNames.indexOf(n) === -1) {
+                        connectedNames.push(n)
+                    }
+                }
+            }
+        }
+
+        if (connectedNames.length === 0 && ccBtProxyModel && ccBtProxyModel.connectedName && ccBtProxyModel.connectedName.length > 0) {
+            connectedNames.push(ccBtProxyModel.connectedName)
+            anyConnected = true
+        }
+
+        if (connectedNames.length > 0) {
+            control.bluetoothConnectedDeviceName = connectedNames.join(", ")
+            control.bluetoothHasConnectedDevice = true
+        } else {
+            control.bluetoothConnectedDeviceName = ""
+            control.bluetoothHasConnectedDevice = anyConnected
+        }
     }
 
     function adjustCorrectLocation() {
@@ -255,7 +345,7 @@ PopupWindow {
         id: _background
         anchors.fill: parent
         radius: 26
-        color: FishUI.Theme.darkMode ? Qt.rgba(0.08, 0.09, 0.13, 0.82)
+        color: FishUI.Theme.darkMode ? Qt.rgba(0.08, 0.09, 0.13, 0.65)
                                      : Qt.rgba(0.92, 0.94, 0.98, 0.72)
         antialiasing: true
         border.width: 1 / FishUI.Dpi.ratio
@@ -274,11 +364,31 @@ PopupWindow {
         }
     }
 
-    ColumnLayout {
-        id: _mainLayout
+    Item {
+        id: contentArea
         anchors.fill: parent
         anchors.margins: 14
-        spacing: 12
+        clip: true
+
+        // ==========================================
+        // 1. MAIN CONTROL CENTER VIEW
+        // ==========================================
+        ColumnLayout {
+            id: mainView
+            width: contentArea.width
+            spacing: 12
+
+            x: control.currentView === "main" ? 0 : -contentArea.width * 0.25
+            opacity: control.currentView === "main" ? 1.0 : 0.0
+            visible: opacity > 0
+            enabled: control.currentView === "main"
+
+            Behavior on x {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
 
         // ==========================================
         // 1. HEADER ROW: Control Center Title + Settings Button
@@ -342,14 +452,7 @@ PopupWindow {
                     id: setMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: {
-                        control.close()
-                        if (!process.startDetached("cutefish-settings")) {
-                            if (!process.startDetached("systemsettings")) {
-                                process.startDetached("gnome-control-center")
-                            }
-                        }
-                    }
+                    onClicked: openSettings()
                 }
             }
         }
@@ -373,29 +476,23 @@ PopupWindow {
                 border.width: 1 / FishUI.Dpi.ratio
                 border.color: control.cardBorderColor
                 antialiasing: true
-                scale: wifiMouse.pressed ? 0.94 : 1.0
+                scale: wifiMouse.pressed && !wifiChevronMouse.pressed ? 0.94 : 1.0
 
                 Behavior on scale {
                     NumberAnimation { duration: 120; easing.type: Easing.OutBack }
                 }
 
-                MouseArea {
-                    id: wifiMouse
-                    anchors.fill: parent
-                    onClicked: control.toggleWifi()
-                }
-
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 9
-                    spacing: 10
+                    anchors.margins: 8
+                    spacing: 6
 
                     Rectangle {
-                        width: 42
-                        height: 42
-                        radius: 21
-                        Layout.preferredWidth: 42
-                        Layout.preferredHeight: 42
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
                         Layout.alignment: Qt.AlignVCenter
                         color: control._wifiActive ? "#007AFF" : control.inactiveCircleColor
                         border.width: control._wifiActive ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
@@ -408,6 +505,13 @@ PopupWindow {
                             height: 22
                             sourceSize: Qt.size(44, 44)
                             source: "qrc:/statusbar/images/" + (control._wifiActive ? "dark/wifi.svg" : (control.inactiveIconDir + "wifi_disabled.svg"))
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            z: 10
+                            onClicked: control.toggleWifi()
                         }
                     }
 
@@ -431,10 +535,79 @@ PopupWindow {
                                 ? activeConnection.wirelessName
                                 : (control._wifiActive ? qsTr("On") : qsTr("Off"))
                             font.pixelSize: 11
-                            color: FishUI.Theme.disabledTextColor
+                            color: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName)
+                                ? control.subTextColor
+                                : FishUI.Theme.disabledTextColor
+                            font.weight: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName)
+                                ? Font.Medium
+                                : Font.Normal
                             elide: Text.ElideRight
                         }
                     }
+
+                    Rectangle {
+                        id: wifiChevronBtn
+                        width: 28
+                        height: 28
+                        radius: 14
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        Layout.alignment: Qt.AlignVCenter
+                        z: 10
+                        color: wifiChevronMouse.containsMouse
+                            ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.08))
+                            : "transparent"
+                        antialiasing: true
+                        scale: wifiChevronMouse.pressed ? 0.90 : (wifiChevronMouse.containsMouse ? 1.05 : 1.0)
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+
+                        Item {
+                            id: wifiChevronIconContainer
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 7
+                                height: 14
+                                sourceSize: Qt.size(28, 56)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                                opacity: wifiChevronMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.65)
+                                antialiasing: true
+                                smooth: true
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: wifiChevronMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                control.currentView = "wifi"
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: wifiMouse
+                    anchors.fill: parent
+                    anchors.rightMargin: 42
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: control.toggleWifi()
                 }
             }
 
@@ -448,29 +621,23 @@ PopupWindow {
                 border.width: 1 / FishUI.Dpi.ratio
                 border.color: control.cardBorderColor
                 antialiasing: true
-                scale: btMouse.pressed ? 0.94 : 1.0
+                scale: btMouse.pressed && !btChevronMouse.pressed ? 0.94 : 1.0
 
                 Behavior on scale {
                     NumberAnimation { duration: 120; easing.type: Easing.OutBack }
                 }
 
-                MouseArea {
-                    id: btMouse
-                    anchors.fill: parent
-                    onClicked: control.toggleBluetooth()
-                }
-
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 9
-                    spacing: 10
+                    anchors.margins: 8
+                    spacing: 6
 
                     Rectangle {
-                        width: 42
-                        height: 42
-                        radius: 21
-                        Layout.preferredWidth: 42
-                        Layout.preferredHeight: 42
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
                         Layout.alignment: Qt.AlignVCenter
                         color: !control.bluetoothDisConnected ? "#007AFF" : control.inactiveCircleColor
                         border.width: !control.bluetoothDisConnected ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
@@ -483,6 +650,13 @@ PopupWindow {
                             height: 22
                             sourceSize: Qt.size(44, 44)
                             source: "qrc:/statusbar/images/" + (!control.bluetoothDisConnected ? "dark/" : control.inactiveIconDir) + (control.bluetoothDisConnected ? "bluetooth-off.svg" : "bluetooth-symbolic.svg")
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            z: 10
+                            onClicked: control.toggleBluetooth()
                         }
                     }
 
@@ -502,12 +676,89 @@ PopupWindow {
 
                         Label {
                             Layout.fillWidth: true
-                            text: !control.bluetoothDisConnected ? qsTr("On") : qsTr("Off")
+                            text: {
+                                if (control.bluetoothDisConnected)
+                                    return qsTr("Off")
+                                if (control.bluetoothConnectedDeviceName.length > 0)
+                                    return control.bluetoothConnectedDeviceName
+                                if (control.bluetoothHasConnectedDevice)
+                                    return qsTr("Connected")
+                                return qsTr("Not Connected")
+                            }
                             font.pixelSize: 11
-                            color: FishUI.Theme.disabledTextColor
+                            color: (!control.bluetoothDisConnected && (control.bluetoothConnectedDeviceName.length > 0 || control.bluetoothHasConnectedDevice))
+                                ? control.subTextColor
+                                : FishUI.Theme.disabledTextColor
+                            font.weight: (!control.bluetoothDisConnected && (control.bluetoothConnectedDeviceName.length > 0 || control.bluetoothHasConnectedDevice))
+                                ? Font.Medium
+                                : Font.Normal
                             elide: Text.ElideRight
                         }
                     }
+
+                    Rectangle {
+                        id: btChevronBtn
+                        width: 28
+                        height: 28
+                        radius: 14
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        Layout.alignment: Qt.AlignVCenter
+                        z: 10
+                        color: btChevronMouse.containsMouse
+                            ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.08))
+                            : "transparent"
+                        antialiasing: true
+                        scale: btChevronMouse.pressed ? 0.90 : (btChevronMouse.containsMouse ? 1.05 : 1.0)
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+
+                        Item {
+                            id: btChevronIconContainer
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 7
+                                height: 14
+                                sourceSize: Qt.size(28, 56)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                                opacity: btChevronMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.65)
+                                antialiasing: true
+                                smooth: true
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: btChevronMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                control.currentView = "bluetooth"
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: btMouse
+                    anchors.fill: parent
+                    anchors.rightMargin: 42
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: control.toggleBluetooth()
                 }
             }
 
@@ -577,8 +828,9 @@ PopupWindow {
                 }
             }
 
-            // 4. Super Device Card
+            // 4. Super Device Card (KDE Connect)
             Rectangle {
+                id: kdeCard
                 Layout.fillWidth: true
                 height: 60
                 radius: 16
@@ -586,20 +838,27 @@ PopupWindow {
                 border.width: 1 / FishUI.Dpi.ratio
                 border.color: control.cardBorderColor
                 antialiasing: true
+                scale: kdeMouse.pressed && !kdeChevronMouse.pressed ? 0.94 : 1.0
+
+                Behavior on scale {
+                    NumberAnimation { duration: 120; easing.type: Easing.OutBack }
+                }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 9
-                    spacing: 10
+                    anchors.margins: 8
+                    spacing: 6
 
                     Rectangle {
-                        width: 42
-                        height: 42
-                        radius: 21
-                        Layout.preferredWidth: 42
-                        Layout.preferredHeight: 42
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
                         Layout.alignment: Qt.AlignVCenter
-                        color: continuity.isConnected ? "#34C759" : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(0, 0, 0, 0.08))
+                        color: continuity.isConnected ? "#34C759" : control.inactiveCircleColor
+                        border.width: continuity.isConnected ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
+                        border.color: control.inactiveCircleBorderColor
                         antialiasing: true
 
                         Image {
@@ -607,15 +866,9 @@ PopupWindow {
                             width: 22
                             height: 22
                             sourceSize: Qt.size(44, 44)
-                            source: "qrc:/statusbar/images/" + (continuity.isConnected ? "dark/" : control.iconDir) + "phone.svg"
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                control.close()
-                                process.startDetached("cutefish-settings", ["-m", "phonelink"])
-                            }
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            source: "qrc:/statusbar/images/" + (continuity.isConnected ? "dark/" : control.inactiveIconDir) + "phone.svg"
                         }
                     }
 
@@ -635,11 +888,78 @@ PopupWindow {
 
                         Label {
                             Layout.fillWidth: true
-                            text: continuity.isConnected ? (continuity.deviceName.length > 0 ? continuity.deviceName : qsTr("Not Connected")) : qsTr("Not Connected")
+                            text: continuity.isConnected ? (continuity.deviceName.length > 0 ? continuity.deviceName : qsTr("Connected")) : qsTr("Not Connected")
                             font.pixelSize: 11
-                            color: FishUI.Theme.disabledTextColor
+                            color: continuity.isConnected ? control.subTextColor : FishUI.Theme.disabledTextColor
+                            font.weight: continuity.isConnected ? Font.Medium : Font.Normal
                             elide: Text.ElideRight
                         }
+                    }
+
+                    Rectangle {
+                        id: kdeChevronBtn
+                        width: 22
+                        height: 22
+                        radius: 11
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 22
+                        Layout.alignment: Qt.AlignVCenter
+                        color: kdeChevronMouse.containsMouse
+                            ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.08))
+                            : "transparent"
+                        antialiasing: true
+                        scale: kdeChevronMouse.pressed ? 0.90 : (kdeChevronMouse.containsMouse ? 1.05 : 1.0)
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+
+                        Item {
+                            id: kdeChevronIconContainer
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 7
+                                height: 14
+                                sourceSize: Qt.size(28, 56)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                                opacity: kdeChevronMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.65)
+                                antialiasing: true
+                                smooth: true
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: kdeChevronMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                control.currentView = "kdeconnect"
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: kdeMouse
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: kdeChevronBtn.left
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        control.currentView = "kdeconnect"
                     }
                 }
             }
@@ -703,7 +1023,7 @@ PopupWindow {
                 Slider {
                     id: brightnessSlider
                     anchors.fill: parent
-                    from: 0
+                    from: 1
                     to: 100
                     value: brightness.value
                     leftPadding: 40
@@ -1336,5 +1656,1403 @@ PopupWindow {
                 }
             }
         }
-    }
+          } // end mainView
+
+        // ==========================================
+        // 2. WI-FI SELECTION VIEW
+        // ==========================================
+        ColumnLayout {
+            id: wifiView
+            width: contentArea.width
+            height: contentArea.height
+            spacing: 12
+
+            x: control.currentView === "wifi" ? 0 : contentArea.width * 0.25
+            opacity: control.currentView === "wifi" ? 1.0 : 0.0
+            visible: opacity > 0
+            enabled: control.currentView === "wifi"
+
+            Behavior on x {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+
+            // Header Row: Back Button + Wi-Fi Title + Settings Button
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                spacing: 8
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: backWifiMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                                : (backWifiMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: backWifiMouse.pressed ? 0.92 : (backWifiMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Item {
+                        anchors.centerIn: parent
+                        width: 14
+                        height: 14
+                        rotation: (Qt.application.layoutDirection === Qt.RightToLeft) ? 0 : 180
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 7
+                            height: 14
+                            sourceSize: Qt.size(28, 56)
+                            source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                            opacity: backWifiMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.70)
+                            antialiasing: true
+                            smooth: true
+                        }
+                    }
+
+                    MouseArea {
+                        id: backWifiMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: control.currentView = "main"
+                    }
+                }
+
+                Label {
+                    text: qsTr("Wi-Fi")
+                    font.bold: true
+                    font.pixelSize: 15
+                    color: FishUI.Theme.textColor
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: wifiSetMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                                : (wifiSetMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: wifiSetMouse.pressed ? 0.92 : (wifiSetMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 16
+                        sourceSize: Qt.size(32, 32)
+                        source: "qrc:/statusbar/images/" + control.iconDir + "settings.svg"
+                    }
+
+                    MouseArea {
+                        id: wifiSetMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: openSettings("network")
+                    }
+                }
+            }
+
+            // Wi-Fi Master Toggle Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 60
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                antialiasing: true
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    Rectangle {
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
+                        Layout.alignment: Qt.AlignVCenter
+                        color: control._wifiActive ? "#007AFF" : control.inactiveCircleColor
+                        border.width: control._wifiActive ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
+                        border.color: control.inactiveCircleBorderColor
+                        antialiasing: true
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 22
+                            height: 22
+                            sourceSize: Qt.size(44, 44)
+                            source: "qrc:/statusbar/images/" + (control._wifiActive ? "dark/wifi.svg" : (control.inactiveIconDir + "wifi_disabled.svg"))
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            z: 10
+                            onClicked: control.toggleWifi()
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
+                        spacing: 2
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr("Wi-Fi")
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: FishUI.Theme.textColor
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName)
+                                ? activeConnection.wirelessName
+                                : (control._wifiActive ? qsTr("On") : qsTr("Off"))
+                            font.pixelSize: 11
+                            color: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName)
+                                ? control.subTextColor
+                                : FishUI.Theme.disabledTextColor
+                            font.weight: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName)
+                                ? Font.Medium
+                                : Font.Normal
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    // Toggle Switch Pill
+                    Rectangle {
+                        id: wifiSwitchPill
+                        width: 40
+                        height: 24
+                        radius: 12
+                        Layout.alignment: Qt.AlignVCenter
+                        color: control._wifiActive ? "#007AFF" : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                        antialiasing: true
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        Rectangle {
+                            width: 20
+                            height: 20
+                            radius: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: control._wifiActive ? parent.width - width - 2 : 2
+                            color: "#FFFFFF"
+                            antialiasing: true
+
+                            Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        }
+
+                        MouseArea {
+                            id: wifiSwitchArea
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: control.toggleWifi()
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.rightMargin: 56
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: control.toggleWifi()
+                }
+            }
+
+            // Networks List Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                clip: true
+                antialiasing: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
+
+                        Label {
+                            text: qsTr("Available Networks")
+                            font.bold: true
+                            font.pixelSize: 12
+                            color: control.subTextColor
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            width: 22
+                            height: 22
+                            radius: 11
+                            color: wifiRescanMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.12))
+                                                          : (wifiRescanMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                            antialiasing: true
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 12
+                                height: 12
+                                sourceSize: Qt.size(24, 24)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "restore_normal.svg"
+                                opacity: wifiRescanMouse.containsMouse ? 1.0 : 0.6
+                            }
+
+                            MouseArea {
+                                id: wifiRescanMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    process.startDetached("nmcli", ["device", "wifi", "rescan"])
+                                }
+                            }
+                        }
+                    }
+
+                    ListView {
+                        id: fullWifiListView
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        reuseItems: true
+                        model: ccWifiProxyModel
+                        spacing: 4
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                        delegate: Rectangle {
+                            width: fullWifiListView.width
+                            height: 38
+                            radius: 10
+                            color: fullWifiItemMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.10))
+                                                            : (fullWifiItemMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : "transparent")
+                            antialiasing: true
+
+                            readonly property bool isCurrentConnected: (typeof activeConnection !== "undefined" && activeConnection && activeConnection.wirelessName === (model.itemUniqueName || model.ssid))
+                            readonly property bool isSecured: model.securityType && model.securityType !== 0
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    source: (isSecured && !isCurrentConnected)
+                                        ? ("qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "network-wireless-locked.svg")
+                                        : ("qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + (model.connectionIcon ? model.connectionIcon : "network-wireless-symbolic") + ".svg")
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Label {
+                                    text: model.itemUniqueName ? model.itemUniqueName : (model.ssid ? model.ssid : qsTr("Hidden Network"))
+                                    font.pixelSize: 12
+                                    font.bold: isCurrentConnected
+                                    color: isCurrentConnected ? FishUI.Theme.highlightColor : FishUI.Theme.textColor
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    visible: isCurrentConnected
+                                    width: wifiConnText.implicitWidth + 12
+                                    height: 20
+                                    radius: 10
+                                    color: FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.25) : Qt.rgba(0, 0.48, 1, 0.15)
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Label {
+                                        id: wifiConnText
+                                        anchors.centerIn: parent
+                                        text: qsTr("Connected")
+                                        font.pixelSize: 9
+                                        font.bold: true
+                                        color: FishUI.Theme.highlightColor
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: fullWifiItemMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var name = model.itemUniqueName || model.ssid
+                                    if (name && name.length > 0) {
+                                        process.startDetached("nmcli", ["connection", "up", name])
+                                    } else {
+                                        openSettings("network")
+                                    }
+                                }
+                            }
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: !control._wifiActive ? qsTr("Wi-Fi is turned off") : qsTr("Searching for networks...")
+                            font.pixelSize: 12
+                            color: FishUI.Theme.disabledTextColor
+                            visible: fullWifiListView.count === 0
+                        }
+                    }
+                }
+            }
+        } // end wifiView
+
+        // ==========================================
+        // 3. BLUETOOTH SELECTION VIEW
+        // ==========================================
+        ColumnLayout {
+            id: btView
+            width: contentArea.width
+            height: contentArea.height
+            spacing: 12
+
+            x: control.currentView === "bluetooth" ? 0 : contentArea.width * 0.25
+            opacity: control.currentView === "bluetooth" ? 1.0 : 0.0
+            visible: opacity > 0
+            enabled: control.currentView === "bluetooth"
+
+            Behavior on x {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+
+            // Header Row: Back Button + Bluetooth Title + Settings Button
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                spacing: 8
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: backBtMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                              : (backBtMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: backBtMouse.pressed ? 0.92 : (backBtMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Item {
+                        anchors.centerIn: parent
+                        width: 14
+                        height: 14
+                        rotation: (Qt.application.layoutDirection === Qt.RightToLeft) ? 0 : 180
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 7
+                            height: 14
+                            sourceSize: Qt.size(28, 56)
+                            source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                            opacity: backBtMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.70)
+                            antialiasing: true
+                            smooth: true
+                        }
+                    }
+
+                    MouseArea {
+                        id: backBtMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: control.currentView = "main"
+                    }
+                }
+
+                Label {
+                    text: qsTr("Bluetooth")
+                    font.bold: true
+                    font.pixelSize: 15
+                    color: FishUI.Theme.textColor
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: btSetMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                              : (btSetMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: btSetMouse.pressed ? 0.92 : (btSetMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 16
+                        sourceSize: Qt.size(32, 32)
+                        source: "qrc:/statusbar/images/" + control.iconDir + "settings.svg"
+                    }
+
+                    MouseArea {
+                        id: btSetMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: openSettings("bluetooth")
+                    }
+                }
+            }
+
+            // Bluetooth Master Toggle Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 60
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                antialiasing: true
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    Rectangle {
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
+                        Layout.alignment: Qt.AlignVCenter
+                        color: !control.bluetoothDisConnected ? "#007AFF" : control.inactiveCircleColor
+                        border.width: !control.bluetoothDisConnected ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
+                        border.color: control.inactiveCircleBorderColor
+                        antialiasing: true
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 22
+                            height: 22
+                            sourceSize: Qt.size(44, 44)
+                            source: "qrc:/statusbar/images/" + (!control.bluetoothDisConnected ? "dark/" : control.inactiveIconDir) + (control.bluetoothDisConnected ? "bluetooth-off.svg" : "bluetooth-symbolic.svg")
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            z: 10
+                            onClicked: control.toggleBluetooth()
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
+                        spacing: 2
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr("Bluetooth")
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: FishUI.Theme.textColor
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: {
+                                if (control.bluetoothDisConnected)
+                                    return qsTr("Off")
+                                if (control.bluetoothConnectedDeviceName.length > 0)
+                                    return control.bluetoothConnectedDeviceName
+                                if (control.bluetoothHasConnectedDevice)
+                                    return qsTr("Connected")
+                                return qsTr("Not Connected")
+                            }
+                            font.pixelSize: 11
+                            color: (!control.bluetoothDisConnected && (control.bluetoothConnectedDeviceName.length > 0 || control.bluetoothHasConnectedDevice))
+                                ? control.subTextColor
+                                : FishUI.Theme.disabledTextColor
+                            font.weight: (!control.bluetoothDisConnected && (control.bluetoothConnectedDeviceName.length > 0 || control.bluetoothHasConnectedDevice))
+                                ? Font.Medium
+                                : Font.Normal
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    // Toggle Switch Pill
+                    Rectangle {
+                        id: btSwitchPill
+                        width: 40
+                        height: 24
+                        radius: 12
+                        Layout.alignment: Qt.AlignVCenter
+                        color: !control.bluetoothDisConnected ? "#007AFF" : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                        antialiasing: true
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        Rectangle {
+                            width: 20
+                            height: 20
+                            radius: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: !control.bluetoothDisConnected ? parent.width - width - 2 : 2
+                            color: "#FFFFFF"
+                            antialiasing: true
+
+                            Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        }
+
+                        MouseArea {
+                            id: btSwitchArea
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: control.toggleBluetooth()
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.rightMargin: 56
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: control.toggleBluetooth()
+                }
+            }
+
+            // Devices List Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                clip: true
+                antialiasing: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
+
+                        Label {
+                            text: qsTr("Devices")
+                            font.bold: true
+                            font.pixelSize: 12
+                            color: control.subTextColor
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    ListView {
+                        id: fullBtListView
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        reuseItems: true
+                        model: ccBtProxyModel
+                        spacing: 4
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                        delegate: Rectangle {
+                            width: fullBtListView.width
+                            height: 38
+                            radius: 10
+                            color: fullBtItemMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.10))
+                                                          : (fullBtItemMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : "transparent")
+                            antialiasing: true
+
+                            readonly property bool isConnected: (model.Connected === true)
+                            readonly property string devAddress: model.Address ? model.Address : ""
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "bluetooth-symbolic.svg"
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Label {
+                                    text: model.Name ? model.Name : (model.DeviceFullName ? model.DeviceFullName : devAddress)
+                                    font.pixelSize: 12
+                                    font.bold: isConnected
+                                    color: isConnected ? FishUI.Theme.highlightColor : FishUI.Theme.textColor
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                // Connection status pill
+                                Rectangle {
+                                    width: fullBtStatusText.implicitWidth + 12
+                                    height: 20
+                                    radius: 10
+                                    color: isConnected ? (FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.25) : Qt.rgba(0, 0.48, 1, 0.15))
+                                                       : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.06))
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Label {
+                                        id: fullBtStatusText
+                                        anchors.centerIn: parent
+                                        text: isConnected ? qsTr("Connected") : qsTr("Connect")
+                                        font.pixelSize: 9
+                                        font.bold: isConnected
+                                        color: isConnected ? FishUI.Theme.highlightColor : FishUI.Theme.disabledTextColor
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: fullBtItemMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (devAddress.length > 0) {
+                                        if (isConnected) {
+                                            process.startDetached("bluetoothctl", ["disconnect", devAddress])
+                                        } else {
+                                            process.startDetached("bluetoothctl", ["connect", devAddress])
+                                        }
+                                        btConnectUpdateTimer.restart()
+                                    } else {
+                                        openSettings("bluetooth")
+                                    }
+                                }
+                            }
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: control.bluetoothDisConnected ? qsTr("Bluetooth is turned off") : qsTr("No paired devices found")
+                            font.pixelSize: 12
+                            color: FishUI.Theme.disabledTextColor
+                            visible: fullBtListView.count === 0
+                        }
+                    }
+                }
+            }
+        } // end btView
+
+        // ==========================================
+        // 4. KDE CONNECT SELECTION / MANAGEMENT VIEW
+        // ==========================================
+        ColumnLayout {
+            id: kdeConnectView
+            width: contentArea.width
+            height: contentArea.height
+            spacing: 12
+
+            x: control.currentView === "kdeconnect" ? 0 : contentArea.width * 0.25
+            opacity: control.currentView === "kdeconnect" ? 1.0 : 0.0
+            visible: opacity > 0
+            enabled: control.currentView === "kdeconnect"
+
+            Behavior on x {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+
+            // Header Row: Back Button + Title + Settings Button
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                spacing: 8
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: backKdeMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                               : (backKdeMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: backKdeMouse.pressed ? 0.92 : (backKdeMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Item {
+                        anchors.centerIn: parent
+                        width: 14
+                        height: 14
+                        rotation: (Qt.application.layoutDirection === Qt.RightToLeft) ? 0 : 180
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 7
+                            height: 14
+                            sourceSize: Qt.size(28, 56)
+                            source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "chevron-right.svg"
+                            opacity: backKdeMouse.containsMouse ? 1.0 : (FishUI.Theme.darkMode ? 0.90 : 0.70)
+                            antialiasing: true
+                            smooth: true
+                        }
+                    }
+
+                    MouseArea {
+                        id: backKdeMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: control.currentView = "main"
+                    }
+                }
+
+                Label {
+                    text: qsTr("KDE Connect")
+                    font.bold: true
+                    font.pixelSize: 15
+                    color: FishUI.Theme.textColor
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 16
+                    color: kdeSetMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                              : (kdeSetMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    antialiasing: true
+                    scale: kdeSetMouse.pressed ? 0.92 : (kdeSetMouse.containsMouse ? 1.05 : 1.0)
+
+                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 16
+                        sourceSize: Qt.size(32, 32)
+                        source: "qrc:/statusbar/images/" + control.iconDir + "settings.svg"
+                    }
+
+                    MouseArea {
+                        id: kdeSetMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: openSettings("phonelink")
+                    }
+                }
+            }
+
+            // KDE Connect Master Status Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 60
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                antialiasing: true
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    Rectangle {
+                        width: 40
+                        height: 40
+                        radius: 20
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
+                        Layout.alignment: Qt.AlignVCenter
+                        color: continuity.isConnected ? "#34C759" : control.inactiveCircleColor
+                        border.width: continuity.isConnected ? 0 : (!FishUI.Theme.darkMode ? 1 / FishUI.Dpi.ratio : 0)
+                        border.color: control.inactiveCircleBorderColor
+                        antialiasing: true
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 22
+                            height: 22
+                            sourceSize: Qt.size(44, 44)
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            source: "qrc:/statusbar/images/" + (continuity.isConnected ? "dark/" : control.inactiveIconDir) + "phone.svg"
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
+                        spacing: 2
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: continuity.isConnected ? (continuity.deviceName.length > 0 ? continuity.deviceName : qsTr("Phone")) : qsTr("KDE Connect")
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: FishUI.Theme.textColor
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: continuity.isConnected
+                                ? ((continuity.batteryCharge >= 0 ? (continuity.batteryCharge + "%" + (continuity.isCharging ? " • " + qsTr("Charging") : "")) : qsTr("Connected")) + (continuity.networkType.length > 0 ? " • " + continuity.networkType : ""))
+                                : qsTr("Not Connected")
+                            font.pixelSize: 11
+                            color: continuity.isConnected ? control.subTextColor : FishUI.Theme.disabledTextColor
+                            font.weight: continuity.isConnected ? Font.Medium : Font.Normal
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    // Connected badge or Pair button
+                    Rectangle {
+                        visible: continuity.isConnected
+                        width: kdeMasterStatusText.implicitWidth + 14
+                        height: 22
+                        radius: 11
+                        color: FishUI.Theme.darkMode ? Qt.rgba(0.20, 0.78, 0.35, 0.22) : Qt.rgba(0.20, 0.78, 0.35, 0.14)
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Label {
+                            id: kdeMasterStatusText
+                            anchors.centerIn: parent
+                            text: qsTr("Connected")
+                            font.pixelSize: 10
+                            font.bold: true
+                            color: "#34C759"
+                        }
+                    }
+
+                    Rectangle {
+                        visible: !continuity.isConnected
+                        width: kdeMasterPairText.implicitWidth + 16
+                        height: 26
+                        radius: 13
+                        color: kdeMasterPairMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                                         : (kdeMasterPairMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06))
+                                                                                             : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.04)))
+                        border.width: 1 / FishUI.Dpi.ratio
+                        border.color: control.cardBorderColor
+                        antialiasing: true
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Label {
+                            id: kdeMasterPairText
+                            anchors.centerIn: parent
+                            text: qsTr("Pair")
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: FishUI.Theme.highlightColor
+                        }
+
+                        MouseArea {
+                            id: kdeMasterPairMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                continuity.openKdeConnect()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // KDE Connect Management & Quick Actions Card
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 16
+                color: control.cardBgColor
+                border.width: 1 / FishUI.Dpi.ratio
+                border.color: control.cardBorderColor
+                clip: true
+                antialiasing: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
+
+                        Label {
+                            text: continuity.isConnected ? qsTr("Device Actions") : qsTr("Connection")
+                            font.bold: true
+                            font.pixelSize: 12
+                            color: control.subTextColor
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            width: 22
+                            height: 22
+                            radius: 11
+                            color: kdeRescanMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.12))
+                                                          : (kdeRescanMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                            antialiasing: true
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 12
+                                height: 12
+                                sourceSize: Qt.size(24, 24)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "restore_normal.svg"
+                                opacity: kdeRescanMouse.containsMouse ? 1.0 : 0.6
+                                fillMode: Image.PreserveAspectFit
+                            }
+
+                            MouseArea {
+                                id: kdeRescanMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    continuity.refresh()
+                                }
+                            }
+                        }
+                    }
+
+                    // Connected Actions List
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: continuity.isConnected
+                        spacing: 6
+
+                        // 1. Ring Device Action
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 42
+                            radius: 10
+                            color: ringMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.10))
+                                                     : (ringMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)))
+                            antialiasing: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "audio-volume-high-symbolic.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 1
+
+                                    Label {
+                                        text: qsTr("Ring Device")
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        color: FishUI.Theme.textColor
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Label {
+                                        text: qsTr("Play a loud ring on your phone")
+                                        font.pixelSize: 10
+                                        color: FishUI.Theme.disabledTextColor
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: ringBtnLabel.implicitWidth + 14
+                                    height: 24
+                                    radius: 12
+                                    color: FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.25) : Qt.rgba(0, 0.48, 1, 0.15)
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Label {
+                                        id: ringBtnLabel
+                                        anchors.centerIn: parent
+                                        text: qsTr("Ring")
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        color: FishUI.Theme.highlightColor
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: ringMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: continuity.ringPhone()
+                            }
+                        }
+
+                        // 2. Send Ping Action
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 42
+                            radius: 10
+                            color: pingMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.10))
+                                                     : (pingMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)))
+                            antialiasing: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "notification-symbolic.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 1
+
+                                    Label {
+                                        text: qsTr("Send Ping")
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        color: FishUI.Theme.textColor
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Label {
+                                        text: qsTr("Test notification connection")
+                                        font.pixelSize: 10
+                                        color: FishUI.Theme.disabledTextColor
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: pingBtnLabel.implicitWidth + 14
+                                    height: 24
+                                    radius: 12
+                                    color: FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.25) : Qt.rgba(0, 0.48, 1, 0.15)
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Label {
+                                        id: pingBtnLabel
+                                        anchors.centerIn: parent
+                                        text: qsTr("Ping")
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        color: FishUI.Theme.highlightColor
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: pingMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: continuity.sendPing()
+                            }
+                        }
+
+                        // 3. Clipboard Sync Toggle
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 42
+                            radius: 10
+                            color: clipRowMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02))
+                            antialiasing: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "clipboard.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Label {
+                                    text: qsTr("Clipboard Sync")
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: FishUI.Theme.textColor
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    width: 36
+                                    height: 20
+                                    radius: 10
+                                    Layout.alignment: Qt.AlignVCenter
+                                    color: continuity.clipboardSync ? "#007AFF" : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                                    antialiasing: true
+
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    Rectangle {
+                                        width: 16
+                                        height: 16
+                                        radius: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: continuity.clipboardSync ? parent.width - width - 2 : 2
+                                        color: "#FFFFFF"
+                                        antialiasing: true
+
+                                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: clipRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: continuity.setClipboardSync(!continuity.clipboardSync)
+                            }
+                        }
+
+                        // 4. Notification Sync Toggle
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 42
+                            radius: 10
+                            color: notifRowMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)) : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02))
+                            antialiasing: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                Image {
+                                    width: 18
+                                    height: 18
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    sourceSize: Qt.size(36, 36)
+                                    source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "notification-new-symbolic.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Label {
+                                    text: qsTr("Notification Sync")
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: FishUI.Theme.textColor
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    width: 36
+                                    height: 20
+                                    radius: 10
+                                    Layout.alignment: Qt.AlignVCenter
+                                    color: continuity.notificationSync ? "#007AFF" : (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15))
+                                    antialiasing: true
+
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    Rectangle {
+                                        width: 16
+                                        height: 16
+                                        radius: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: continuity.notificationSync ? parent.width - width - 2 : 2
+                                        color: "#FFFFFF"
+                                        antialiasing: true
+
+                                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: notifRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: continuity.setNotificationSync(!continuity.notificationSync)
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        }
+                    }
+
+                    // Disconnected Empty State
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: !continuity.isConnected
+                        spacing: 10
+
+                        Item { Layout.fillHeight: true }
+
+                        Rectangle {
+                            width: 52
+                            height: 52
+                            radius: 26
+                            color: FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 26
+                                height: 26
+                                sourceSize: Qt.size(52, 52)
+                                source: "qrc:/statusbar/images/" + (FishUI.Theme.darkMode ? "dark/" : "light/") + "phone.svg"
+                                opacity: 0.7
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+
+                        Label {
+                            text: qsTr("No Device Connected")
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: FishUI.Theme.textColor
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        Label {
+                            text: qsTr("Pair your phone with KDE Connect to sync notifications, clipboard, and battery status.")
+                            font.pixelSize: 11
+                            color: FishUI.Theme.disabledTextColor
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 20
+                            Layout.rightMargin: 20
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+
+                        Rectangle {
+                            width: openKdeBtnText.implicitWidth + 24
+                            height: 32
+                            radius: 16
+                            color: openKdeMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.4) : Qt.rgba(0, 0.48, 1, 0.25))
+                                                       : (openKdeMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.3) : Qt.rgba(0, 0.48, 1, 0.2)) : (FishUI.Theme.darkMode ? Qt.rgba(0, 0.48, 1, 0.2) : Qt.rgba(0, 0.48, 1, 0.12)))
+                            Layout.alignment: Qt.AlignHCenter
+                            antialiasing: true
+
+                            Label {
+                                id: openKdeBtnText
+                                anchors.centerIn: parent
+                                text: qsTr("Open KDE Connect")
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: FishUI.Theme.highlightColor
+                            }
+
+                            MouseArea {
+                                id: openKdeMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: continuity.openKdeConnect()
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+                    }
+                }
+            }
+        } // end kdeConnectView
+    } // end contentArea
 }

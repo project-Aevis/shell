@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Dock AppItem - macOS / GNOME 50 App-Specific Quick Actions
  */
@@ -75,7 +76,7 @@ DockItem {
     }
 
     onRightClicked: {
-        if (model.appId !== "cutefish-launcher")
+        if (model.appId !== "cutefish-launcher" && model.appId !== "aevis-launcher")
             popupMenu(contextMenu)
     }
 
@@ -88,25 +89,25 @@ DockItem {
             } else if (id.indexOf("chrome") !== -1 || id.indexOf("chromium") !== -1 || id.indexOf("brave") !== -1) {
                 startBounce()
                 popupMenu(contextMenu)
-            } else if (model.appId === "cutefish-launcher") {
+            } else if (model.appId === "cutefish-launcher" || model.appId === "aevis-launcher") {
                 appModel.clicked(model.appId)
             } else {
                 startBounce()
                 popupMenu(contextMenu)
             }
         } else if (mouse.button === Qt.RightButton) {
-            if (model.appId !== "cutefish-launcher")
+            if (model.appId !== "cutefish-launcher" && model.appId !== "aevis-launcher")
                 popupMenu(contextMenu)
         }
     }
 
     onClicked: function(mouse) {
         if (mouse.button === Qt.LeftButton) {
-            if (windowCount === 0 && model.appId !== "cutefish-launcher")
+            if (windowCount === 0 && model.appId !== "cutefish-launcher" && model.appId !== "aevis-launcher")
                 startBounce()
             appModel.clicked(model.appId)
         } else if (mouse.button === Qt.MiddleButton) {
-            if (model.appId !== "cutefish-launcher") {
+            if (model.appId !== "cutefish-launcher" && model.appId !== "aevis-launcher") {
                 startBounce()
                 appModel.openNewInstance(model.appId)
             }
@@ -238,7 +239,7 @@ DockItem {
 
         MenuItem {
             text: qsTr("New Window")
-            visible: windowCount > 0 && model.appId !== "cutefish-launcher"
+            visible: windowCount > 0 && model.appId !== "cutefish-launcher" && model.appId !== "aevis-launcher"
             icon.name: "window-new"
             onTriggered: {
                 startBounce()

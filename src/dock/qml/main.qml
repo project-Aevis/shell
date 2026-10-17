@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Author:     rekols <revenmartin@gmail.com>
  *
@@ -175,6 +176,8 @@ Item {
             if (!visible) {
                 dock.previewOpen = false
                 windowPreviewPopup.currentItem = null
+                windowPreviewPopup.windows = []
+                windowPreviewPopup.appId = ""
             }
         }
     }

@@ -1,6 +1,7 @@
 #include "kwinwaylandinterface.h"
 
 #include <QGuiApplication>
+#include <QCoreApplication>
 #include <QScreen>
 #include <QTimer>
 #include <QtGui/qguiapplication_platform.h>
@@ -143,11 +144,59 @@ bool KWinWaylandInterface::isAcceptableWindow(quint64 id) const
     if (window.id == 0 || !window.mapped)
         return false;
 
-    // The shell's own windows all share one app id now that the status bar,
-    // the dock, the launcher and the desktop live in one process.
+    // Never accept windows belonging to the shell process itself
+    const qint64 shellPid = static_cast<qint64>(QCoreApplication::applicationPid());
+    if (shellPid > 0 && window.pid == shellPid)
+        return false;
+
+    // Never accept windows explicitly flagged to skip taskbar
+    if (window.skipTaskbar)
+        return false;
+
     const QString name = appId(window).toLower();
-    return name != QLatin1String("cutefish-shell")
-        && name != QLatin1String("org.kde.xwaylandvideobridge");
+    const QString cls = window.className.toLower();
+    const QString res = window.resourceName.toLower();
+    const QString title = window.title.trimmed();
+
+    auto isShellId = [](const QString &s) {
+        if (s.isEmpty())
+            return false;
+        return s == QLatin1String("aevis-shell")
+            || s == QLatin1String("cutefish-shell")
+            || s == QLatin1String("aevis-dock")
+            || s == QLatin1String("cutefish-dock")
+            || s == QLatin1String("aevis-launcher")
+            || s == QLatin1String("cutefish-launcher")
+            || s == QLatin1String("aevis-statusbar")
+            || s == QLatin1String("cutefish-statusbar")
+            || s == QLatin1String("aevis-desktop")
+            || s == QLatin1String("cutefish-desktop")
+            || s == QLatin1String("aevis-screenlocker")
+            || s == QLatin1String("cutefish-screenlocker")
+            || s == QLatin1String("org.aevis.shell")
+            || s == QLatin1String("org.cutefish.shell")
+            || s == QLatin1String("org.kde.xwaylandvideobridge")
+            || s == QLatin1String("org.kde.plasmashell")
+            || s == QLatin1String("plasmashell")
+            || s == QLatin1String("krunner");
+    };
+
+    if (isShellId(name) || isShellId(cls) || isShellId(res))
+        return false;
+
+    if (title == QLatin1String("Desktop")
+        || title == QLatin1String("Dock")
+        || title == QLatin1String("Status Bar")
+        || title == QLatin1String("Launcher")
+        || title == QLatin1String("aevis-shell")
+        || title == QLatin1String("cutefish-shell")) {
+        return false;
+    }
+
+    if (name.isEmpty() && title.isEmpty())
+        return false;
+
+    return true;
 }
 
 quint64 KWinWaylandInterface::activeWindow() const

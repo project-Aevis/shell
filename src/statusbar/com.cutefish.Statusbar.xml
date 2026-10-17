@@ -8,5 +8,6 @@
         <arg name="t" type="b" direction="in"/>
     </method>
     <method name="toggleSpotlight"/>
+    <method name="toggleControlCenter"/>
   </interface>
 </node>

@@ -72,7 +72,6 @@ Item {
         fillMode: Image.PreserveAspectFit
         asynchronous: true
         smooth: true
-        mipmap: true
     }
 
     DropArea {

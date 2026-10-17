@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
+ *
+ * Author:     revenmartin <revenmartin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "applicationmodel.h"
 #include "core/services/applicationresolver.h"
 #include "applicationlauncher.h"
@@ -10,8 +30,10 @@
 #include <QSettings>
 #include <QCoreApplication>
 #include <QTimer>
+#include <QDir>
 #include <QDBusInterface>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 
 #include <algorithm>
 #include <utility>
@@ -157,8 +179,8 @@ void ApplicationModel::updateFromDesktopEntry(ApplicationItem *item,
     item->id = entry->id();
     if (!entry->icon().isEmpty())
         item->iconName = entry->icon();
-    if (item->id == QLatin1String("cutefish-filemanager"))
-        item->iconName = QStringLiteral("cutefish-filemanager");
+    if (item->id == QLatin1String("cutefish-filemanager") || item->id == QLatin1String("aevis-filemanager"))
+        item->iconName = item->id;
     if (!entry->name().isEmpty())
         item->visibleName = entry->name();
     if (!entry->exec().isEmpty())
@@ -258,11 +280,15 @@ bool ApplicationModel::isDesktopPinned(const QString &desktopFile)
 
 void ApplicationModel::clicked(const QString &id)
 {
-    if (id == kLauncherId || id == "launchpad") {
+    if (id == kLauncherId || id == "launchpad" || id == "aevis-launcher") {
         if (m_launcher) {
             m_launcher->toggle();
         } else {
-            QDBusInterface iface("com.cutefish.Launcher", "/Launcher", "com.cutefish.Launcher", QDBusConnection::sessionBus());
+            const QString launcherService = (QDBusConnection::sessionBus().interface() &&
+                                             QDBusConnection::sessionBus().interface()->isServiceRegistered(QStringLiteral("org.aevis.Launcher")))
+                ? QStringLiteral("org.aevis.Launcher")
+                : QStringLiteral("com.cutefish.Launcher");
+            QDBusInterface iface(launcherService, "/Launcher", launcherService, QDBusConnection::sessionBus());
             iface.call("toggle");
         }
         return;
@@ -557,8 +583,12 @@ int ApplicationModel::indexOf(const QString &id)
 
 void ApplicationModel::initPinnedApplications()
 {
-    QSettings settings(QSettings::UserScope, "cutefishos", "dock_pinned");
-    QSettings systemSettings("/etc/cutefish-dock-list.conf", QSettings::IniFormat);
+    const QString userOrg = QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/dock_pinned.conf")) ? "aevis" : "cutefishos";
+    QSettings settings(QSettings::UserScope, userOrg, "dock_pinned");
+    const QString sysDock = QFile::exists(QStringLiteral("/etc/aevis-dock-list.conf"))
+        ? QStringLiteral("/etc/aevis-dock-list.conf")
+        : QStringLiteral("/etc/cutefish-dock-list.conf");
+    QSettings systemSettings(sysDock, QSettings::IniFormat);
     QSettings *set = (QFile(settings.fileName()).exists()) ? &settings
                                                            : &systemSettings;
     QStringList groups = set->childGroups();
@@ -573,15 +603,29 @@ void ApplicationModel::initPinnedApplications()
 
     // Finder (macOS position 0)
     ApplicationItem *finderItem = new ApplicationItem;
-    finderItem->id = "cutefish-filemanager";
-    finderItem->desktopPath = "/usr/share/applications/cutefish-filemanager.desktop";
+    const QString fmDesktop = QFile::exists(QStringLiteral("/usr/share/applications/aevis-filemanager.desktop"))
+        ? QStringLiteral("/usr/share/applications/aevis-filemanager.desktop")
+        : QStringLiteral("/usr/share/applications/cutefish-filemanager.desktop");
+    const QString fmExec = QFile::exists(QStringLiteral("/usr/bin/aevis-filemanager"))
+        ? QStringLiteral("aevis-filemanager")
+        : QStringLiteral("cutefish-filemanager");
+    const QString fmId = QFile::exists(QStringLiteral("/usr/share/applications/aevis-filemanager.desktop"))
+        ? QStringLiteral("aevis-filemanager")
+        : QStringLiteral("cutefish-filemanager");
+
+    finderItem->id = fmId;
+    finderItem->desktopPath = fmDesktop;
     finderItem->iconName = "file-manager";
     finderItem->visibleName = tr("Finder");
-    finderItem->exec = "cutefish-filemanager";
+    finderItem->exec = fmExec;
     finderItem->isPinned = true;
     finderItem->fixed = true;
-    if (DesktopEntry *finderEntry = ApplicationRegistry::instance()->byId("cutefish-filemanager")) {
+    if (DesktopEntry *finderEntry = ApplicationRegistry::instance()->byId(fmId)) {
         updateFromDesktopEntry(finderItem, finderEntry);
+        finderItem->visibleName = tr("Finder");
+        finderItem->fixed = true;
+    } else if (DesktopEntry *legacyEntry = ApplicationRegistry::instance()->byId("cutefish-filemanager")) {
+        updateFromDesktopEntry(finderItem, legacyEntry);
         finderItem->visibleName = tr("Finder");
         finderItem->fixed = true;
     }
@@ -599,6 +643,14 @@ void ApplicationModel::initPinnedApplications()
         DesktopEntry *entry = ApplicationRegistry::instance()->byPath(path);
         if (!entry)
             entry = ApplicationRegistry::instance()->byId(group);
+        if (!entry) {
+            QString altGroup = group;
+            if (altGroup.startsWith(QStringLiteral("cutefish-")))
+                altGroup.replace(0, 9, QStringLiteral("aevis-"));
+            else if (altGroup.startsWith(QStringLiteral("aevis-")))
+                altGroup.replace(0, 6, QStringLiteral("cutefish-"));
+            entry = ApplicationRegistry::instance()->byId(altGroup);
+        }
 
         if (entry && !findItemById(entry->id())) {
             beginInsertRows(QModelIndex(), rowCount(), rowCount());
@@ -685,7 +737,8 @@ void ApplicationModel::onApplicationsChanged()
 
 void ApplicationModel::savePinAndUnPinList()
 {
-    QSettings settings(QSettings::UserScope, "cutefishos", "dock_pinned");
+    const QString userOrg = QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/dock_pinned.conf")) ? "aevis" : "cutefishos";
+    QSettings settings(QSettings::UserScope, userOrg, "dock_pinned");
     settings.clear();
 
     int index = 0;
@@ -741,6 +794,9 @@ void ApplicationModel::onWindowAdded(quint64 wid)
     if (findItemByWId(wid))
         return;
 
+    if (!m_kwin->isAcceptableWindow(wid))
+        return;
+
     const KWinWaylandClient client = m_kwin->client(wid);
     const QString id = KWinWaylandInterface::appId(client);
 
@@ -794,6 +850,11 @@ void ApplicationModel::onWindowAdded(quint64 wid)
 
 void ApplicationModel::onWindowChanged(quint64 wid)
 {
+    if (!m_kwin->isAcceptableWindow(wid)) {
+        onWindowRemoved(wid);
+        return;
+    }
+
     ApplicationItem *item = findItemByWId(wid);
     if (!item) {
         onWindowAdded(wid);

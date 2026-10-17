@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import QtQuick.Effects
+import FishUI 1.0 as FishUI
 
 Item {
     id: control
@@ -47,7 +48,7 @@ Item {
     Text {
         id: _label
         anchors.centerIn: parent
-        font.family: "SF Pro Text"
+        font.family: FishUI.Theme.fontFamily
         renderType: Text.QtRendering
         style: control.dropShadow ? Text.Raised : Text.Normal
         styleColor: Qt.rgba(0, 0, 0, 0.14)

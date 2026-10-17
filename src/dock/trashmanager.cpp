@@ -41,17 +41,26 @@ void TrashManager::moveToTrash(const QList<QUrl> &urls)
         paths.append(url.toLocalFile());
     }
 
-    QProcess::startDetached(QStringLiteral("cutefish-filemanager"), QStringList() << QStringLiteral("--move-to-trash") << paths);
+    const QString fileManager = QStandardPaths::findExecutable(QStringLiteral("aevis-filemanager")).isEmpty()
+        ? QStringLiteral("cutefish-filemanager")
+        : QStringLiteral("aevis-filemanager");
+    QProcess::startDetached(fileManager, QStringList() << QStringLiteral("--move-to-trash") << paths);
 }
 
 void TrashManager::emptyTrash()
 {
-    QProcess::startDetached(QStringLiteral("cutefish-filemanager"), QStringList() << QStringLiteral("-e"));
+    const QString fileManager = QStandardPaths::findExecutable(QStringLiteral("aevis-filemanager")).isEmpty()
+        ? QStringLiteral("cutefish-filemanager")
+        : QStringLiteral("aevis-filemanager");
+    QProcess::startDetached(fileManager, QStringList() << QStringLiteral("-e"));
 }
 
 void TrashManager::openTrash()
 {
-    QProcess::startDetached(QStringLiteral("cutefish-filemanager"), QStringList() << QStringLiteral("trash:///"));
+    const QString fileManager = QStandardPaths::findExecutable(QStringLiteral("aevis-filemanager")).isEmpty()
+        ? QStringLiteral("cutefish-filemanager")
+        : QStringLiteral("aevis-filemanager");
+    QProcess::startDetached(fileManager, QStringList() << QStringLiteral("trash:///"));
 }
 
 void TrashManager::onDirectoryChanged()

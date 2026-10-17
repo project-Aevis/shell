@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
+ *
+ * Author:     revenmartin <revenmartin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "shell.h"
 
 #include "core/qmltypes.h"
@@ -31,12 +51,17 @@ struct ServiceRegistration {
     const char *path;
 };
 
-// Keep the service names stable for clients on the session bus.
+// Register both Aevis and legacy Cutefish service names for seamless compatibility.
 constexpr ServiceRegistration s_services[] = {
+    { "org.aevis.Shell",           "/Shell"        },
     { "com.cutefish.Shell",        "/Shell"        },
+    { "org.aevis.Statusbar",       "/Statusbar"    },
     { "com.cutefish.Statusbar",    "/Statusbar"    },
+    { "org.aevis.Dock",            "/Dock"         },
     { "com.cutefish.Dock",         "/Dock"         },
+    { "org.aevis.Launcher",        "/Launcher"     },
     { "com.cutefish.Launcher",     "/Launcher"     },
+    { "org.aevis.Notification",    "/Notification" },
     { "com.cutefish.Notification", "/Notification" },
 };
 
@@ -66,11 +91,17 @@ Shell::Shell(QObject *parent)
 
 #if defined(__linux__)
     QTimer *trimTimer = new QTimer(this);
-    connect(trimTimer, &QTimer::timeout, this, []() {
+    connect(trimTimer, &QTimer::timeout, this, [this]() {
+        if (m_engine) {
+            m_engine->trimComponentCache();
+        }
         malloc_trim(0);
     });
     trimTimer->start(45000);
-    QTimer::singleShot(3000, this, []() {
+    QTimer::singleShot(3000, this, [this]() {
+        if (m_engine) {
+            m_engine->trimComponentCache();
+        }
         malloc_trim(0);
     });
 #endif
@@ -112,8 +143,12 @@ void Shell::loadTranslations()
     const QString locale = QLocale::system().name();
 
     for (const char *component : s_translationCatalogues) {
-        const QString path = QStringLiteral("/usr/share/cutefish-shell/translations/%1_%2.qm")
-                                 .arg(QLatin1String(component), locale);
+        QString path = QStringLiteral("/usr/share/aevis-shell/translations/%1_%2.qm")
+                           .arg(QLatin1String(component), locale);
+        if (!QFile::exists(path)) {
+            path = QStringLiteral("/usr/share/cutefish-shell/translations/%1_%2.qm")
+                       .arg(QLatin1String(component), locale);
+        }
 
         if (!QFile::exists(path))
             continue;
@@ -130,12 +165,19 @@ bool Shell::registerServices()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
 
+    bool anyRegistered = false;
     for (const ServiceRegistration &registration : s_services) {
         if (!bus.registerService(QString::fromLatin1(registration.service))) {
-            qWarning() << "cutefish-shell: cannot take the D-Bus name"
-                       << registration.service << "- is a shell already running?";
-            return false;
+            qWarning() << "aevis-shell: cannot take the D-Bus name"
+                       << registration.service;
+        } else {
+            anyRegistered = true;
         }
+    }
+
+    if (!anyRegistered) {
+        qWarning() << "aevis-shell: could not register any D-Bus services - is a shell already running?";
+        return false;
     }
 
     return true;
@@ -164,6 +206,8 @@ void Shell::start()
     bus.registerObject(QStringLiteral("/Statusbar"), m_statusBar);
 
     m_launcher = new Launcher(m_engine);
+    bus.registerObject(QStringLiteral("/Launcher"),
+                       QStringLiteral("org.aevis.Launcher"), m_launcher);
     bus.registerObject(QStringLiteral("/Launcher"),
                        QStringLiteral("com.cutefish.Launcher"), m_launcher);
     m_launcher->setDock(m_dock);

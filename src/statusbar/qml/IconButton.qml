@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Author:     Reion Wong <aj@cutefishos.com>
  *
@@ -68,12 +69,12 @@ Item {
         anchors.centerIn: parent
         width: Math.max(2, Math.round((parent.height * 0.75) / 2) * 2)
         height: width
-        sourceSize.width: Math.ceil(width * Window.devicePixelRatio)
-        sourceSize.height: Math.ceil(height * Window.devicePixelRatio)
+        sourceSize.width: Math.max(64, Math.ceil(width * (Window.devicePixelRatio || 2) * 2))
+        sourceSize.height: Math.max(64, Math.ceil(height * (Window.devicePixelRatio || 2) * 2))
         source: control.source
         asynchronous: true
         antialiasing: true
         smooth: true
-        mipmap: false
+        mipmap: true
     }
 }

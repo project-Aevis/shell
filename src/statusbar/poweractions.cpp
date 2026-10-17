@@ -1,70 +1,79 @@
+/*
+ * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
+ *
+ * Author:     revenmartin <revenmartin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "poweractions.h"
 #include <QDebug>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QProcess>
 
-const static QString s_dbusName = "com.cutefish.Session";
-const static QString s_pathName = "/Session";
-const static QString s_interfaceName = "com.cutefish.Session";
+namespace
+{
+static void callSessionMethod(const QString &method, const QStringList &fallbackProcess = {})
+{
+    const QString service = (QDBusConnection::sessionBus().interface() &&
+                             QDBusConnection::sessionBus().interface()->isServiceRegistered(QStringLiteral("org.aevis.Session")))
+        ? QStringLiteral("org.aevis.Session")
+        : QStringLiteral("com.cutefish.Session");
 
-const static QString s_screenSaverService = "org.freedesktop.ScreenSaver";
-const static QString s_screenSaverPath = "/ScreenSaver";
-const static QString s_screenSaverInterface = "org.freedesktop.ScreenSaver";
+    QDBusInterface iface(service, QStringLiteral("/Session"), service, QDBusConnection::sessionBus());
+    if (iface.isValid()) {
+        const QDBusMessage reply = iface.call(method);
+        if (reply.type() != QDBusMessage::ErrorMessage)
+            return;
+    }
+
+    if (!fallbackProcess.isEmpty()) {
+        QProcess::startDetached(fallbackProcess.first(), fallbackProcess.mid(1));
+    }
+}
+} // namespace
 
 PowerActions::PowerActions(QObject *parent)
     : QObject(parent)
 {
-
 }
 
 void PowerActions::shutdown()
 {
-    QDBusInterface iface(s_dbusName, s_pathName, s_interfaceName, QDBusConnection::sessionBus());
-    if (iface.isValid()) {
-        const QDBusMessage reply = iface.call(QStringLiteral("powerOff"));
-        if (reply.type() != QDBusMessage::ErrorMessage)
-            return;
-    }
-    QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("poweroff")});
+    callSessionMethod(QStringLiteral("powerOff"), {QStringLiteral("systemctl"), QStringLiteral("poweroff")});
 }
 
 void PowerActions::logout()
 {
-    QDBusInterface iface(s_dbusName, s_pathName, s_interfaceName, QDBusConnection::sessionBus());
-    if (iface.isValid()) {
-        const QDBusMessage reply = iface.call(QStringLiteral("logout"));
-        if (reply.type() != QDBusMessage::ErrorMessage)
-            return;
-    }
-    QProcess::startDetached(QStringLiteral("loginctl"), {QStringLiteral("terminate-session"), QStringLiteral("self")});
+    callSessionMethod(QStringLiteral("logout"), {QStringLiteral("loginctl"), QStringLiteral("terminate-session"), QStringLiteral("self")});
 }
 
 void PowerActions::reboot()
 {
-    QDBusInterface iface(s_dbusName, s_pathName, s_interfaceName, QDBusConnection::sessionBus());
-    if (iface.isValid()) {
-        const QDBusMessage reply = iface.call(QStringLiteral("reboot"));
-        if (reply.type() != QDBusMessage::ErrorMessage)
-            return;
-    }
-    QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("reboot")});
+    callSessionMethod(QStringLiteral("reboot"), {QStringLiteral("systemctl"), QStringLiteral("reboot")});
 }
 
 void PowerActions::lockScreen()
 {
-    QProcess::startDetached(QStringLiteral("cutefish-screenlocker"), QStringList());
+    if (!QProcess::startDetached(QStringLiteral("aevis-screenlocker"), {}))
+        QProcess::startDetached(QStringLiteral("cutefish-screenlocker"), {});
 }
 
 void PowerActions::suspend()
 {
-    QDBusInterface iface(s_dbusName, s_pathName, s_interfaceName, QDBusConnection::sessionBus());
-
-    if (!iface.isValid()) {
-        qWarning() << "Unable to request suspend: session service is unavailable";
-        return;
-    }
-
-    const QDBusMessage reply = iface.call(QStringLiteral("suspend"));
-    if (reply.type() == QDBusMessage::ErrorMessage)
-        qWarning() << "Unable to request suspend:" << reply.errorName() << reply.errorMessage();
+    callSessionMethod(QStringLiteral("suspend"));
 }

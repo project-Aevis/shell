@@ -36,6 +36,20 @@ protected:
     }
 };
 
+static void launchFileManager(const QStringList &args)
+{
+    if (!QProcess::startDetached(QStringLiteral("aevis-filemanager"), args)) {
+        QProcess::startDetached(QStringLiteral("cutefish-filemanager"), args);
+    }
+}
+
+static void launchSettings(const QStringList &args)
+{
+    if (!QProcess::startDetached(QStringLiteral("aevis-settings"), args)) {
+        QProcess::startDetached(QStringLiteral("cutefish-settings"), args);
+    }
+}
+
 AppMenuModel::AppMenuModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_menuAvailable(false)
@@ -400,7 +414,7 @@ void AppMenuModel::setupFinderMenu()
     QAction *newFinderWindow = fileMenu->addAction(tr("New Finder Window"));
     newFinderWindow->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_N));
     connect(newFinderWindow, &QAction::triggered, this, []() {
-        QProcess::startDetached(QStringLiteral("cutefish-filemanager"), {QDir::homePath()});
+        launchFileManager({QDir::homePath()});
     });
 
     QAction *newFolder = fileMenu->addAction(tr("New Folder"));
@@ -522,7 +536,7 @@ void AppMenuModel::setupFinderMenu()
 
     QAction *goTrash = goMenu->addAction(tr("Trash"));
     connect(goTrash, &QAction::triggered, this, []() {
-        QProcess::startDetached(QStringLiteral("cutefish-filemanager"), {QStringLiteral("trash:///")});
+        launchFileManager({QStringLiteral("trash:///")});
     });
 
     // 5. Window Menu
@@ -547,9 +561,9 @@ void AppMenuModel::setupFinderMenu()
     QAction *helpAction = m_finderMenu->addAction(tr("Help"));
     helpAction->setMenu(helpMenu);
 
-    QAction *helpItem = helpMenu->addAction(tr("macOS Help"));
+    QAction *helpItem = helpMenu->addAction(tr("Help"));
     connect(helpItem, &QAction::triggered, this, []() {
-        QDesktopServices::openUrl(QUrl(QStringLiteral("https://cutefishos.com")));
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://aevis.org")));
     });
 
     // Fallback menu for regular applications without DBus menus (macOS style)
@@ -622,7 +636,7 @@ void AppMenuModel::setupFinderMenu()
 
     QAction *gHelpItem = genericHelpMenu->addAction(tr("%1 Help").arg(tr("Application")));
     connect(gHelpItem, &QAction::triggered, this, []() {
-        QDesktopServices::openUrl(QUrl(QStringLiteral("https://cutefishos.com")));
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://aevis.org")));
     });
 }
 
@@ -636,20 +650,20 @@ void AppMenuModel::rebuildActivityMenu(const QString &title, bool isFinder)
     if (isFinder) {
         QAction *aboutAction = m_activityMenu->addAction(tr("About Finder"));
         connect(aboutAction, &QAction::triggered, this, []() {
-            QProcess::startDetached(QStringLiteral("cutefish-settings"), {QStringLiteral("-m"), QStringLiteral("about")});
+            launchSettings({QStringLiteral("-m"), QStringLiteral("about")});
         });
 
         QAction *settingsAction = m_activityMenu->addAction(tr("Settings..."));
         settingsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Comma));
         connect(settingsAction, &QAction::triggered, this, []() {
-            QProcess::startDetached(QStringLiteral("cutefish-settings"), {});
+            launchSettings({});
         });
 
         m_activityMenu->addSeparator();
 
         QAction *emptyTrashAction = m_activityMenu->addAction(tr("Empty Trash..."));
         connect(emptyTrashAction, &QAction::triggered, this, []() {
-            QProcess::startDetached(QStringLiteral("cutefish-filemanager"), {QStringLiteral("-e")});
+            launchFileManager({QStringLiteral("-e")});
         });
 
         m_activityMenu->addSeparator();
@@ -663,13 +677,13 @@ void AppMenuModel::rebuildActivityMenu(const QString &title, bool isFinder)
     } else {
         QAction *aboutAction = m_activityMenu->addAction(tr("About %1").arg(title));
         connect(aboutAction, &QAction::triggered, this, []() {
-            QProcess::startDetached(QStringLiteral("cutefish-settings"), {QStringLiteral("-m"), QStringLiteral("about")});
+            launchSettings({QStringLiteral("-m"), QStringLiteral("about")});
         });
 
         QAction *settingsAction = m_activityMenu->addAction(tr("Settings..."));
         settingsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Comma));
         connect(settingsAction, &QAction::triggered, this, []() {
-            QProcess::startDetached(QStringLiteral("cutefish-settings"), {});
+            launchSettings({});
         });
 
         m_activityMenu->addSeparator();

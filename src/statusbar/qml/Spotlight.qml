@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021-2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Spotlight Search - macOS Sequoia Design
  */
@@ -8,7 +9,6 @@ import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
 import QtQuick.Window 2.12
-import Qt5Compat.GraphicalEffects
 
 import Cutefish.Launcher 1.0
 import Cutefish.StatusBar 1.0
@@ -53,7 +53,8 @@ PopupWindow {
         interval: 200
         repeat: false
         onTriggered: {
-            process.startDetached("cutefish-screenshot", ["-a"])
+            if (!process.startDetached("aevis-screenshot", ["-a"]))
+                process.startDetached("cutefish-screenshot", ["-a"])
         }
     }
 
@@ -69,7 +70,7 @@ PopupWindow {
         { id: "battery", name: qsTr("Battery & Power"), keywords: "battery power energy sleep charge percentage", icon: "battery-level-100-symbolic" },
         { id: "datetime", name: qsTr("Date & Time"), keywords: "date time clock timezone calendar 24-hour", icon: "settings" },
         { id: "user", name: qsTr("Users & Accounts"), keywords: "user account password avatar login admin", icon: "settings" },
-        { id: "about", name: qsTr("About This Computer"), keywords: "about system specs version cutefish os info", icon: "settings" }
+        { id: "about", name: qsTr("About This Computer"), keywords: "about system specs version aevis os cutefish info", icon: "settings" }
     ]
 
     // System Power Commands Definition
@@ -263,7 +264,7 @@ PopupWindow {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 font.pointSize: 16
-                font.family: "SF Pro Text"
+                font.family: FishUI.Theme.fontFamily
                 color: FishUI.Theme.textColor
                 selectByMouse: true
                 clip: true
@@ -317,7 +318,8 @@ PopupWindow {
 
                     // 2. Settings Match
                     if (control.matchedSettings.length > 0) {
-                        process.startDetached("cutefish-settings", ["-m", control.matchedSettings[0].id])
+                        if (!process.startDetached("aevis-settings", ["-m", control.matchedSettings[0].id]))
+                            process.startDetached("cutefish-settings", ["-m", control.matchedSettings[0].id])
                         control.close()
                         return
                     }
@@ -487,7 +489,8 @@ PopupWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     onClicked: {
-                        process.startDetached("cutefish-settings", ["-m", modelData.id])
+                        if (!process.startDetached("aevis-settings", ["-m", modelData.id]))
+                            process.startDetached("cutefish-settings", ["-m", modelData.id])
                         control.close()
                     }
                 }

@@ -3,6 +3,8 @@
 #include <QDBusConnectionInterface>
 #include <QProcess>
 #include <QUrl>
+#include <QFile>
+#include <QDir>
 #include <QDebug>
 
 ContinuityManager::ContinuityManager(QObject *parent)
@@ -28,7 +30,11 @@ ContinuityManager::ContinuityManager(QObject *parent)
 
 void ContinuityManager::loadLocalSettings()
 {
-    QSettings settings(QStringLiteral("cutefishos"), QStringLiteral("continuity"));
+    QString org = (QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/continuity.conf"))
+                   || !QFile::exists(QDir::homePath() + QStringLiteral("/.config/cutefishos/continuity.conf")))
+                      ? QStringLiteral("aevis")
+                      : QStringLiteral("cutefishos");
+    QSettings settings(org, QStringLiteral("continuity"));
     m_deviceName = settings.value(QStringLiteral("deviceName"), QString()).toString();
     m_connected = false;
     m_paired = false;
@@ -44,11 +50,22 @@ void ContinuityManager::loadLocalSettings()
 
 void ContinuityManager::saveLocalSettings()
 {
-    QSettings settings(QStringLiteral("cutefishos"), QStringLiteral("continuity"));
+    QSettings settings(QStringLiteral("aevis"), QStringLiteral("continuity"));
     settings.setValue(QStringLiteral("deviceName"), m_deviceName);
     settings.setValue(QStringLiteral("clipboardSync"), m_clipboardSync);
     settings.setValue(QStringLiteral("notificationSync"), m_notificationSync);
     settings.setValue(QStringLiteral("showInMenuBar"), m_showInMenuBar);
+    settings.sync();
+
+    // Mirror to cutefishos if directory exists
+    if (QFile::exists(QDir::homePath() + QStringLiteral("/.config/cutefishos"))) {
+        QSettings legacy(QStringLiteral("cutefishos"), QStringLiteral("continuity"));
+        legacy.setValue(QStringLiteral("deviceName"), m_deviceName);
+        legacy.setValue(QStringLiteral("clipboardSync"), m_clipboardSync);
+        legacy.setValue(QStringLiteral("notificationSync"), m_notificationSync);
+        legacy.setValue(QStringLiteral("showInMenuBar"), m_showInMenuBar);
+        legacy.sync();
+    }
 }
 
 bool ContinuityManager::isConnected() const

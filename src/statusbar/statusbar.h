@@ -24,6 +24,7 @@ public:
     void setBatteryPercentage(bool enabled);
     void setTwentyFourTime(bool t);
     Q_INVOKABLE void toggleSpotlight();
+    Q_INVOKABLE void toggleControlCenter();
 
     void updateGeometry();
     void updateViewStruts();
@@ -33,6 +34,7 @@ signals:
     void launchPadChanged();
     void twentyFourTimeChanged();
     void spotlightRequested();
+    void controlCenterRequested();
 
 private slots:
     void initState();

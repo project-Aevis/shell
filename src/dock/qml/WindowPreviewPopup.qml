@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2026 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * WindowPreviewPopup.qml - Live interactive taskbar/dock window preview cards
  */
@@ -114,13 +115,15 @@ Window {
 
     function hide() {
         visible = false
+        windows = []
+        appId = ""
     }
 
     Rectangle {
         id: mainCard
         anchors.fill: parent
-        implicitWidth: windows.length > 0 ? (previewRow.implicitWidth + 20) : (titleLabel.implicitWidth + 24)
-        implicitHeight: windows.length > 0 ? (previewRow.implicitHeight + 20) : (titleLabel.implicitHeight + 14)
+        implicitWidth: windows.length > 0 ? Math.max(previewCol.implicitWidth + 20, 220) : (titleLabel.implicitWidth + 24)
+        implicitHeight: windows.length > 0 ? (previewCol.implicitHeight + 20) : (titleLabel.implicitHeight + 14)
 
         radius: 12
         color: FishUI.Theme.darkMode
@@ -141,12 +144,76 @@ Window {
             color: FishUI.Theme.textColor
         }
 
-        // Horizontal row of window preview tiles
-        Row {
-            id: previewRow
+        ColumnLayout {
+            id: previewCol
             anchors.centerIn: parent
-            spacing: 10
+            spacing: 8
             visible: previewPopup.windows.length > 0
+
+            // Header Row: App Name and "+ New Window" Quick Action
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
+                spacing: 8
+
+                Label {
+                    text: previewPopup.appName
+                    font.bold: true
+                    font.pixelSize: 11
+                    color: FishUI.Theme.textColor
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                Rectangle {
+                    height: 20
+                    width: newWinLayout.implicitWidth + 12
+                    radius: 10
+                    color: newWinMouse.pressed ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12))
+                                               : (newWinMouse.containsMouse ? (FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.06)) : "transparent")
+                    border.width: 1 / FishUI.Dpi.ratio
+                    border.color: FishUI.Theme.darkMode ? Qt.rgba(255, 255, 255, 0.14) : Qt.rgba(0, 0, 0, 0.10)
+                    antialiasing: true
+
+                    RowLayout {
+                        id: newWinLayout
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        Text {
+                            text: "+"
+                            font.bold: true
+                            font.pixelSize: 12
+                            color: FishUI.Theme.highlightColor
+                        }
+
+                        Label {
+                            id: newWinText
+                            text: qsTr("New Window")
+                            font.pixelSize: 10
+                            font.weight: Font.Medium
+                            color: FishUI.Theme.textColor
+                        }
+                    }
+
+                    MouseArea {
+                        id: newWinMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            appModel.openNewInstance(previewPopup.appId)
+                            previewPopup.hide()
+                        }
+                    }
+                }
+            }
+
+            // Horizontal row of window preview tiles
+            Row {
+                id: previewRow
+                spacing: 10
 
             Repeater {
                 model: previewPopup.windows
@@ -263,7 +330,7 @@ Window {
 
                                 TaskManager.ScreencastingRequest {
                                     id: scRequest
-                                    uuid: (winData && winData.uuid) ? winData.uuid : ""
+                                    uuid: (previewPopup.visible && winData && winData.uuid) ? winData.uuid : ""
                                 }
 
                                 // Fallback placeholder with centered app icon
@@ -287,8 +354,8 @@ Window {
                                     id: pipewireItem
                                     anchors.fill: parent
                                     anchors.margins: 2
-                                    nodeId: scRequest.nodeId
-                                    visible: scRequest.nodeId > 0 && !tileItem.isMinimized
+                                    nodeId: (previewPopup.visible && scRequest.nodeId > 0) ? scRequest.nodeId : 0
+                                    visible: previewPopup.visible && scRequest.nodeId > 0 && !tileItem.isMinimized
                                     opacity: ready ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 150 } }
                                 }
@@ -318,6 +385,8 @@ Window {
                     }
                 }
             }
+            }
         }
     }
 }
+

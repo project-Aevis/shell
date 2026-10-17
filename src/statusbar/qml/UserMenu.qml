@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 - 2022 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Author:     Kate Leet <kate@cutefishos.com>
  *
@@ -34,21 +35,28 @@ FishUI.DesktopMenu {
     }
 
     FishUI.MenuItem {
-        text: qsTr("About This Mac")
-        onTriggered: process.startDetached("cutefish-settings", ["-m", "about"])
+        text: qsTr("About This Computer")
+        onTriggered: {
+            if (!process.startDetached("aevis-settings", ["-m", "about"]))
+                process.startDetached("cutefish-settings", ["-m", "about"])
+        }
     }
 
     FishUI.MenuSeparator {}
 
     FishUI.MenuItem {
         text: qsTr("System Settings...")
-        onTriggered: process.startDetached("cutefish-settings", [])
+        onTriggered: {
+            if (!process.startDetached("aevis-settings", []))
+                process.startDetached("cutefish-settings", [])
+        }
     }
 
     FishUI.MenuItem {
-        text: qsTr("App Store...")
+        text: qsTr("Software Update...")
         onTriggered: {
-            process.startDetached("cutefish-settings", ["-m", "update"])
+            if (!process.startDetached("aevis-settings", ["-m", "update"]))
+                process.startDetached("cutefish-settings", ["-m", "update"])
         }
     }
 
@@ -57,7 +65,9 @@ FishUI.DesktopMenu {
     FishUI.MenuItem {
         text: qsTr("Force Quit...")
         onTriggered: {
-            process.startDetached("qps", [])
+            if (!process.startDetached("aevis-taskmanager", []))
+                if (!process.startDetached("cutefish-taskmanager", []))
+                    process.startDetached("qps", [])
         }
     }
 

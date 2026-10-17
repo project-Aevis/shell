@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
+ *
+ * Author:     revenmartin <revenmartin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "shell.h"
 
 #include <QApplication>
@@ -36,9 +56,17 @@ int main(int argc, char *argv[])
     // QApplication rather than QGuiApplication: the status bar's application
     // menu and several context menus are QWidget menus.
     QApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("cutefish-shell"));
-    app.setDesktopFileName(QStringLiteral("cutefish-shell"));
-    app.setOrganizationName(QStringLiteral("cutefishos"));
+
+    const bool isAevis = QFile::exists(QStringLiteral("/usr/share/applications/aevis-shell.desktop"))
+        || qgetenv("XDG_CURRENT_DESKTOP").contains("Aevis")
+        || qgetenv("DESKTOP_SESSION").compare("aevis", Qt::CaseInsensitive) == 0
+        || (argc > 0 && QString::fromLocal8Bit(argv[0]).contains(QLatin1String("aevis")));
+    const QString desktopFile = isAevis ? QStringLiteral("aevis-shell") : QStringLiteral("cutefish-shell");
+    app.setApplicationName(desktopFile);
+    app.setDesktopFileName(desktopFile);
+    app.setOrganizationName(desktopFile.startsWith(QLatin1String("aevis")) ? QStringLiteral("aevis") : QStringLiteral("cutefishos"));
+
+
 
     // Ensure all Qt Quick windows request an RGBA surface format with an alpha buffer for compositor blur
     QQuickWindow::setDefaultAlphaBuffer(true);

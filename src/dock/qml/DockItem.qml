@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Author:     rekols <revenmartin@gmail.com>
  *
@@ -44,6 +45,7 @@ Item {
     property bool enableActivateDot: true
     property bool isActive: false
     property int windowCount: 0
+    property int unreadCount: 0
 
     property string appId: ""
     property var popupText
@@ -76,8 +78,8 @@ Item {
 
     Behavior on currentScale {
         NumberAnimation {
-            duration: root.isHovered ? 80 : 220
-            easing.type: root.isHovered ? Easing.OutQuint : Easing.OutBack
+            duration: root.isHovered ? 45 : 180
+            easing.type: root.isHovered ? Easing.OutCubic : Easing.OutBack
         }
     }
 
@@ -89,12 +91,11 @@ Item {
     z: Math.round(control.currentScale * 100)
 
     // Tactile click compression
-    // Tactile click compression
     property real clickScale: iconArea.pressed && !mouseArea.drag.active ? 0.92 : 1.0
     Behavior on clickScale {
         NumberAnimation {
-            duration: 120
-            easing.type: Easing.OutBack
+            duration: 90
+            easing.type: Easing.OutQuad
         }
     }
 
@@ -403,7 +404,7 @@ Item {
         }
     }
 
-    // Window Count Badge (Top-Right of Icon)
+    // Unread Notification / Multi-Window Badge (Top-Right of Icon)
     Rectangle {
         id: countBadge
         z: 10
@@ -414,11 +415,11 @@ Item {
         width: Math.max(18, countText.implicitWidth + 8)
         height: 18
         radius: 9
-        color: "#007AFF"
+        color: control.unreadCount > 0 ? "#FF3B30" : "#007AFF"
         border.width: 1.5
         border.color: FishUI.Theme.darkMode ? "#1C1C1E" : "#FFFFFF"
         antialiasing: true
-        visible: control.windowCount > 0 && !dragStarted
+        visible: (control.unreadCount > 0 || (control.windowCount > 1 && control.unreadCount > 0)) && !dragStarted
 
         scale: visible ? 1.0 : 0.0
         Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
@@ -426,7 +427,8 @@ Item {
         Text {
             id: countText
             anchors.centerIn: parent
-            text: control.windowCount > 99 ? "99+" : control.windowCount
+            text: control.unreadCount > 0 ? (control.unreadCount > 99 ? "99+" : control.unreadCount)
+                                          : (control.windowCount > 99 ? "99+" : control.windowCount)
             font.bold: true
             font.pixelSize: 10
             renderType: Text.NativeRendering
@@ -434,13 +436,19 @@ Item {
         }
     }
 
-    // macOS Style Pearl Indicator Dot
+    // macOS / Modern Capsule Pearl Indicator Dot
     Item {
         id: activeDotContainer
         z: 100
 
-        width: (typeof root !== "undefined" && root.activeDotSize) ? Math.max(5, root.activeDotSize) : 5
-        height: width
+        readonly property real baseDotSize: (typeof root !== "undefined" && root.activeDotSize) ? Math.max(5, root.activeDotSize) : 5
+        readonly property bool isMultiWindow: control.windowCount > 1
+
+        width: (isMultiWindow && isBottom) ? (baseDotSize * 2.3) : baseDotSize
+        height: (isMultiWindow && !isBottom) ? (baseDotSize * 2.3) : baseDotSize
+
+        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
 
         anchors.horizontalCenter: isBottom ? icon.horizontalCenter : undefined
         anchors.top: isBottom ? icon.bottom : undefined
@@ -462,20 +470,20 @@ Item {
         // Glow halo for frontmost active app
         Rectangle {
             anchors.centerIn: parent
-            width: parent.width * 2.2
-            height: parent.height * 2.2
-            radius: width / 2
+            width: parent.width + 8
+            height: parent.height + 8
+            radius: Math.min(width, height) / 2
             color: FishUI.Theme.darkMode ? Qt.rgba(1, 1, 1, 0.30)
                                          : Qt.rgba(0, 0, 0, 0.20)
             visible: control.isActive
             Behavior on visible { PropertyAnimation { duration: 200 } }
         }
 
-        // Crisp circular pearl dot with subtle contrast rim
+        // Crisp capsule / circular pearl dot with subtle contrast rim
         Rectangle {
             id: activeDot
             anchors.fill: parent
-            radius: width / 2
+            radius: Math.min(width, height) / 2
             border.width: 0.5
             border.color: FishUI.Theme.darkMode ? Qt.rgba(0, 0, 0, 0.35)
                                                 : Qt.rgba(255, 255, 255, 0.7)

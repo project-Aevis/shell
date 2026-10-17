@@ -15,6 +15,8 @@ PlasmaSurface::PlasmaSurface(QWindow *window)
     , m_window(window)
 {
     m_window->installEventFilter(this);
+    connect(KWinWaylandInterface::instance(), &KWinWaylandInterface::plasmaShellReady,
+            this, &PlasmaSurface::attach);
 }
 
 PlasmaSurface::~PlasmaSurface()
@@ -87,6 +89,8 @@ void PlasmaSurface::attach()
             m_surface->setPanelBehavior(m_panelBehavior);
             m_surface->setPanelTakesFocus(m_panelTakesFocus);
         }
+        m_surface->setSkipTaskbar(true);
+        m_surface->setSkipSwitcher(true);
         m_surface->setPosition(m_position);
         return;
     }

@@ -87,6 +87,11 @@ public:
 
     void setScreen(QScreen *screen);
 
+    //! Whether to create a Wayland layer-shell surface with exclusive zone in KWin.
+    //! When false, space is only reserved logically in StrutRegistry without creating
+    //! a compositor-level strut.
+    void setWaylandSurfaceEnabled(bool enabled);
+
     // Called from the wlr-layer-shell listener.
     static void configureCallback(void *data, zwlr_layer_surface_v1 *surface,
                                   quint32 serial, quint32 width, quint32 height);
@@ -106,6 +111,7 @@ private:
     QSize m_bufferSize;
     Qt::Edge m_edge = Qt::BottomEdge;
     int m_thickness = 0;
+    bool m_waylandSurfaceEnabled = true;
 };
 
 #endif // STRUTSPACER_H

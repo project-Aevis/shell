@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
+ *
+ * Author:     revenmartin <revenmartin@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "docksettings.h"
 #include "dockmetrics.h"
 
@@ -6,6 +26,7 @@
 #include <QDBusInterface>
 
 #include <QFile>
+#include <QDir>
 #include <QDebug>
 
 static DockSettings *SELF = nullptr;
@@ -25,7 +46,9 @@ DockSettings::DockSettings(QObject *parent)
     , m_roundedWindowEnabled(true)
     , m_direction(Left)
     , m_visibility(AlwaysShow)
-    , m_settings(new QSettings(QSettings::UserScope, "cutefishos", "dock", this))
+    , m_settings(new QSettings(QSettings::UserScope,
+                               QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/dock.conf")) ? "aevis" : "cutefishos",
+                               "dock", this))
 {
     if (!m_settings->contains("IconSize"))
         m_settings->setValue("IconSize", DockMetrics::baseIconSize);

@@ -83,11 +83,21 @@ void DesktopManager::updatePrimaryScreen()
         it.value()->setPrimary(it.key() == primary);
 }
 
+static inline QString wallpaperConfigOrg()
+{
+    const QString aevisPath = QDir::homePath() + QStringLiteral("/.config/aevis/wallpaper.conf");
+    return (QFile::exists(aevisPath) || QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis")))
+        ? QStringLiteral("aevis") : QStringLiteral("cutefishos");
+}
+
 void DesktopManager::checkBingWallpaper()
 {
-    QSettings settings(QStringLiteral("cutefishos"), QStringLiteral("wallpaper"));
-    if (!settings.value(QStringLiteral("autoBingWallpaper"), false).toBool())
-        return;
+    QSettings settings(wallpaperConfigOrg(), QStringLiteral("wallpaper"));
+    if (!settings.value(QStringLiteral("autoBingWallpaper"), false).toBool()) {
+        QSettings legacySettings(QStringLiteral("cutefishos"), QStringLiteral("wallpaper"));
+        if (!legacySettings.value(QStringLiteral("autoBingWallpaper"), false).toBool())
+            return;
+    }
 
     QString today = QDate::currentDate().toString(QStringLiteral("yyyyMMdd"));
     QString savedDate = settings.value(QStringLiteral("bingTodayDate")).toString();
@@ -102,7 +112,7 @@ void DesktopManager::checkBingWallpaper()
 
     QUrl url(QStringLiteral("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US"));
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Mozilla/5.0 CutefishOS/1.0"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Mozilla/5.0 ProjectAevis/1.0 (Compatible; CutefishOS/1.0)"));
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
     m_jsonReply = m_netManager->get(request);
@@ -141,13 +151,15 @@ void DesktopManager::onBingJsonDownloaded()
     QString urlPart = imgObj.value(QStringLiteral("url")).toString();
     QString fullUrl = urlPart.startsWith(QLatin1String("http")) ? urlPart : (QStringLiteral("https://www.bing.com") + urlPart);
 
-    QSettings settings(QStringLiteral("cutefishos"), QStringLiteral("wallpaper"));
-    settings.setValue(QStringLiteral("bingTodayTitle"), m_pendingBingTitle);
-    settings.setValue(QStringLiteral("bingTodayCopyright"), copyright);
-    settings.setValue(QStringLiteral("bingTodayDate"), m_pendingBingDate);
+    for (const QString &org : { QStringLiteral("aevis"), QStringLiteral("cutefishos") }) {
+        QSettings settings(org, QStringLiteral("wallpaper"));
+        settings.setValue(QStringLiteral("bingTodayTitle"), m_pendingBingTitle);
+        settings.setValue(QStringLiteral("bingTodayCopyright"), copyright);
+        settings.setValue(QStringLiteral("bingTodayDate"), m_pendingBingDate);
+    }
 
     QNetworkRequest imgRequest((QUrl(fullUrl)));
-    imgRequest.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Mozilla/5.0 CutefishOS/1.0"));
+    imgRequest.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Mozilla/5.0 ProjectAevis/1.0 (Compatible; CutefishOS/1.0)"));
     imgRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
     m_imgReply = m_netManager->get(imgRequest);
@@ -169,7 +181,7 @@ void DesktopManager::onBingImageDownloaded()
     m_imgReply->deleteLater();
     m_imgReply = nullptr;
 
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/backgrounds/cutefishos");
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/backgrounds/aevis");
     QDir().mkpath(cacheDir);
 
     QString fileName = QStringLiteral("bing-%1.jpg").arg(m_pendingBingDate.isEmpty() ? QStringLiteral("today") : m_pendingBingDate);
@@ -179,6 +191,18 @@ void DesktopManager::onBingImageDownloaded()
     if (file.open(QIODevice::WriteOnly)) {
         file.write(bytes);
         file.close();
+    }
+
+    // Mirror to legacy path for compatibility
+    QString legacyDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/backgrounds/cutefishos");
+    QDir().mkpath(legacyDir);
+    QString legacyPath = legacyDir + QLatin1Char('/') + fileName;
+    if (!QFile::exists(legacyPath)) {
+        QFile legacyFile(legacyPath);
+        if (legacyFile.open(QIODevice::WriteOnly)) {
+            legacyFile.write(bytes);
+            legacyFile.close();
+        }
     }
 
     // Generic cache copy
@@ -191,25 +215,36 @@ void DesktopManager::onBingImageDownloaded()
         todayFile.close();
     }
 
-    QSettings settings(QStringLiteral("cutefishos"), QStringLiteral("wallpaper"));
-    settings.setValue(QStringLiteral("bingTodayPath"), fullPath);
+    for (const QString &org : { QStringLiteral("aevis"), QStringLiteral("cutefishos") }) {
+        QSettings settings(org, QStringLiteral("wallpaper"));
+        settings.setValue(QStringLiteral("bingTodayPath"), fullPath);
+
+        QSettings themeSettings(org, QStringLiteral("theme"));
+        themeSettings.setValue(QStringLiteral("Wallpaper"), fullPath);
+        themeSettings.setValue(QStringLiteral("wallpaper"), fullPath);
+        themeSettings.setValue(QStringLiteral("BackgroundType"), 0);
+        themeSettings.setValue(QStringLiteral("backgroundtype"), 0);
+        themeSettings.sync();
+    }
 
     // Apply wallpaper to system
-    QDBusInterface appearance(QStringLiteral("com.cutefish.Services"),
-                              QStringLiteral("/com/cutefish/Services/Appearance"),
-                              QStringLiteral("com.cutefish.Services.Appearance"),
+    QDBusInterface appearance(QStringLiteral("org.aevis.Services"),
+                              QStringLiteral("/org/aevis/Services/Appearance"),
+                              QStringLiteral("org.aevis.Services.Appearance"),
                               QDBusConnection::sessionBus());
     if (appearance.isValid()) {
         appearance.call(QStringLiteral("setWallpaper"), fullPath);
         appearance.call(QStringLiteral("setBackgroundType"), 0);
     }
 
-    QSettings themeSettings(QStringLiteral("cutefishos"), QStringLiteral("theme"));
-    themeSettings.setValue(QStringLiteral("Wallpaper"), fullPath);
-    themeSettings.setValue(QStringLiteral("wallpaper"), fullPath);
-    themeSettings.setValue(QStringLiteral("BackgroundType"), 0);
-    themeSettings.setValue(QStringLiteral("backgroundtype"), 0);
-    themeSettings.sync();
+    QDBusInterface legacyAppearance(QStringLiteral("com.cutefish.Services"),
+                                    QStringLiteral("/com/cutefish/Services/Appearance"),
+                                    QStringLiteral("com.cutefish.Services.Appearance"),
+                                    QDBusConnection::sessionBus());
+    if (legacyAppearance.isValid()) {
+        legacyAppearance.call(QStringLiteral("setWallpaper"), fullPath);
+        legacyAppearance.call(QStringLiteral("setBackgroundType"), 0);
+    }
 
     QProcess::startDetached(QStringLiteral("notify-send"),
                            { QStringLiteral("-a"), QStringLiteral("Wallpaper"),

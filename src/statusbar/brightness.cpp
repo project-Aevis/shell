@@ -65,7 +65,7 @@ void Brightness::onBrightnessChanged()
 
 void Brightness::setValue(int value)
 {
-    value = std::clamp(value, 0, 100);
+    value = std::clamp(value, 1, 100);
     if (m_value != value) {
         m_value = value;
         emit valueChanged();
@@ -81,7 +81,7 @@ void Brightness::setValue(int value)
                 maxB = maxF.readAll().trimmed().toInt();
                 maxF.close();
             }
-            int rawVal = (value * maxB) / 100;
+            int rawVal = std::max(1, (value * maxB) / 100);
             QTextStream out(&curF);
             out << rawVal << "\n";
             curF.close();

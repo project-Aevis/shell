@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 CutefishOS Team.
+ * Copyright (C) 2026 Project Aevis Contributors.
  *
  * Author:     Reion Wong <aj@cutefishos.com>
  *
@@ -69,6 +70,7 @@ Item {
     property var timeFormat: StatusBar.twentyFourTime ? "ddd MMM d  HH:mm" : "ddd MMM d  h:mm AP"
 
     onTimeFormatChanged: {
+        timeTimer.interval = 50
         timeTimer.restart()
     }
 
@@ -256,7 +258,7 @@ Item {
             }
 
             BarIcon {
-                id: cutefishLogo
+                id: osLogo
                 anchors.centerIn: parent
                 width: rootItem.iconSize
                 height: width
@@ -265,7 +267,7 @@ Item {
                 mipmap: true
                 smooth: true
                 antialiasing: true
-                source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "cutefish.svg"
+                source: "qrc:/statusbar/images/aevis-logo.svg"
                 dropShadow: rootItem.darkMode
             }
         }
@@ -366,7 +368,6 @@ Item {
                     dropShadow: rootItem.darkMode
                     width: rootItem.iconSize
                     height: width
-                    sourceSize: Qt.size(width, height)
                     source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "phone.svg"
                     antialiasing: true
                 }
@@ -397,7 +398,6 @@ Item {
                 dropShadow: rootItem.darkMode
                 width: rootItem.iconSize
                 height: width
-                sourceSize: Qt.size(width, height)
                 source: activeConnection.wirelessIcon ? "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + activeConnection.wirelessIcon + ".svg" : "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "network-wireless-connected-100.svg"
                 antialiasing: true
             }
@@ -418,7 +418,6 @@ Item {
                 dropShadow: rootItem.darkMode
                 width: rootItem.iconSize
                 height: width
-                sourceSize: Qt.size(width, height)
                 source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + rootItem.volumeIconName + ".svg"
                 antialiasing: true
             }
@@ -443,7 +442,6 @@ Item {
                     dropShadow: rootItem.darkMode
                     width: 20
                     height: 11
-                    sourceSize: Qt.size(24, 13)
                     fillMode: Image.PreserveAspectFit
                     source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + battery.iconSource
                     Layout.alignment: Qt.AlignCenter
@@ -495,7 +493,6 @@ Item {
                 dropShadow: rootItem.darkMode
                 width: rootItem.iconSize
                 height: width
-                sourceSize: Qt.size(width, height)
                 source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "control.svg"
                 antialiasing: true
             }
@@ -534,7 +531,6 @@ Item {
                 dropShadow: rootItem.darkMode
                 width: rootItem.iconSize
                 height: width
-                sourceSize: Qt.size(width, height)
                 source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "system-search-symbolic.svg"
                 antialiasing: true
             }
@@ -575,7 +571,6 @@ Item {
                 dropShadow: rootItem.darkMode
                 width: rootItem.iconSize
                 height: width
-                sourceSize: Qt.size(width, height)
                 source: "qrc:/statusbar/images/" + (rootItem.darkMode ? "dark/" : "light/") + "clipboard.svg"
                 antialiasing: true
             }
@@ -631,7 +626,10 @@ Item {
                         running: true
                         triggeredOnStart: true
                         onTriggered: {
-                            timeLabel.text = new Date().toLocaleString(Qt.locale(), rootItem.timeFormat)
+                            var now = new Date()
+                            timeLabel.text = now.toLocaleString(Qt.locale(), rootItem.timeFormat)
+                            var remainingSeconds = 60 - now.getSeconds()
+                            interval = (remainingSeconds > 0 ? remainingSeconds : 60) * 1000
                         }
                     }
                 }
@@ -731,7 +729,7 @@ Item {
     Loader {
         id: controlCenter
         active: false
-        sourceComponent: ControlCenter {}
+        sourceComponent: Component { ControlCenter {} }
         asynchronous: true
         onLoaded: {
             item.transientParent = rootItem.Window.window
@@ -775,7 +773,7 @@ Item {
     Loader {
         id: userMenu
         active: false
-        sourceComponent: UserMenu {}
+        sourceComponent: Component { UserMenu {} }
         asynchronous: true
 
         onLoaded: {
@@ -791,7 +789,7 @@ Item {
     Loader {
         id: spotlight
         active: false
-        sourceComponent: Spotlight {}
+        sourceComponent: Component { Spotlight {} }
         asynchronous: true
 
         onLoaded: {
@@ -806,13 +804,19 @@ Item {
         function onSpotlightRequested() {
             spotlightItem.toggleDialog()
         }
+
+        function onControlCenterRequested() {
+            controler.toggleDialog()
+        }
     }
 
     Loader {
         id: clipboardPopup
         active: false
-        sourceComponent: ClipboardPopup {
-            clipboardHelper: globalClipboardHelper
+        sourceComponent: Component {
+            ClipboardPopup {
+                clipboardHelper: globalClipboardHelper
+            }
         }
         asynchronous: true
 

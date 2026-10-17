@@ -10,7 +10,11 @@ static QStringList noColorOverlayList = {
     "netease-cloud-music",
     "chrome_status_icon_1",
     "35682", // obs studio
-    "lark_status_icon_1"
+    "lark_status_icon_1",
+    "spotify",
+    "spotify-client",
+    "ht-music",
+    "hypertube music"
 };
 
 SystemTrayModel::SystemTrayModel(QObject *parent)
@@ -75,8 +79,29 @@ QVariant SystemTrayModel::data(const QModelIndex &index, int role) const
         return item->title();
     case ToolTipRole:
         return item->tooltip();
-    case CanColorOverlay:
-        return !noColorOverlayList.contains(item->appId());
+    case CanColorOverlay: {
+        const QString &appId = item->appId();
+        const QString &iconName = item->iconName();
+        const QString &title = item->title();
+
+        for (const QString &excluded : noColorOverlayList) {
+            if (appId.contains(excluded, Qt::CaseInsensitive)
+                || iconName.contains(excluded, Qt::CaseInsensitive)
+                || title.contains(excluded, Qt::CaseInsensitive)) {
+                return false;
+            }
+        }
+
+        if (iconName.isEmpty() && !item->icon().isNull()) {
+            return false;
+        }
+
+        if (iconName.contains(QLatin1String("-symbolic"), Qt::CaseInsensitive)) {
+            return true;
+        }
+
+        return false;
+    }
     }
 
     return QVariant();
