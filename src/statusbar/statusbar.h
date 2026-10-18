@@ -2,7 +2,6 @@
 #define STATUSBAR_H
 
 #include "core/window/shellsurface.h"
-#include "core/wayland/strutspacer.h"
 #include "core/services/activity.h"
 
 class StatusBar : public ShellSurface
@@ -44,7 +43,6 @@ private:
 
     QRect m_screenRect;
     Activity *m_acticity;
-    StrutSpacer *m_strutSpacer;
     bool m_twentyFourTime;
 };
 

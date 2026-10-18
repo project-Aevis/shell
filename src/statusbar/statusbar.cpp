@@ -39,8 +39,6 @@ StatusBar::StatusBar(QQmlEngine *engine)
     : ShellSurface(engine)
     , m_acticity(Activity::self())
 {
-    m_strutSpacer = nullptr;
-
     const QString localeOrg = QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/locale.conf"))
         ? QStringLiteral("aevis")
         : QStringLiteral("cutefishos");
@@ -126,22 +124,7 @@ void StatusBar::updateGeometry()
 
 void StatusBar::updateViewStruts()
 {
-    QScreen *s = screen();
-    if (!s)
-        s = qGuiApp->primaryScreen();
-    if (!s)
-        return;
-
-    // A plasma-shell panel does not reserve work area on its own; the
-    // spacer does it via zwlr_layer_surface_v1 with an exclusive zone.
-    // The cutefishlauncher KWin script pins the status bar and desktop
-    // to y=0 to prevent KWin 6.8+ from displacing them.
-    if (!m_strutSpacer)
-        m_strutSpacer = new StrutSpacer(this);
-
-    m_strutSpacer->setEdge(Qt::TopEdge);
-    m_strutSpacer->setScreen(s);
-    m_strutSpacer->setThickness(geometry().height());
+    // PlasmaSurface with Role::Panel automatically manages workarea and struts via org_kde_plasma_shell.
 }
 
 void StatusBar::initState()
@@ -198,40 +181,4 @@ void StatusBar::setupGlobalShortcuts()
     // Spotlight search shortcut: Meta+Space and Ctrl+Space
     QAction *spotlightAction = new QAction(this);
     spotlightAction->setObjectName(QStringLiteral("SpotlightSearch"));
-    spotlightAction->setText(tr("Spotlight Search"));
-    KGlobalAccel::self()->setShortcut(spotlightAction,
-        QList<QKeySequence>() << QKeySequence(Qt::META | Qt::Key_Space) << QKeySequence(Qt::CTRL | Qt::Key_Space),
-        KGlobalAccel::NoAutoloading);
-    KGlobalAccel::self()->setDefaultShortcut(spotlightAction,
-        QList<QKeySequence>() << QKeySequence(Qt::META | Qt::Key_Space) << QKeySequence(Qt::CTRL | Qt::Key_Space));
-    connect(spotlightAction, &QAction::triggered, this, &StatusBar::toggleSpotlight);
-
-    // Screenshot Area shortcut: Shift+Meta+4 and Ctrl+Alt+A
-    QAction *screenshotAreaAction = new QAction(this);
-    screenshotAreaAction->setObjectName(QStringLiteral("ScreenshotArea"));
-    screenshotAreaAction->setText(tr("Take Screenshot Area"));
-    KGlobalAccel::self()->setShortcut(screenshotAreaAction,
-        QList<QKeySequence>() << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_4) << QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A),
-        KGlobalAccel::NoAutoloading);
-    KGlobalAccel::self()->setDefaultShortcut(screenshotAreaAction,
-        QList<QKeySequence>() << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_4) << QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A));
-    connect(screenshotAreaAction, &QAction::triggered, this, []() {
-        if (!QProcess::startDetached(QStringLiteral("aevis-screenshot"), {QStringLiteral("-a")}))
-            QProcess::startDetached(QStringLiteral("cutefish-screenshot"), {QStringLiteral("-a")});
-    });
-
-    // Screenshot Fullscreen / PrtSc shortcut: Shift+Meta+3 and Print
-    QAction *screenshotFullAction = new QAction(this);
-    screenshotFullAction->setObjectName(QStringLiteral("ScreenshotFull"));
-    screenshotFullAction->setText(tr("Take Fullscreen Screenshot"));
-    KGlobalAccel::self()->setShortcut(screenshotFullAction,
-        QList<QKeySequence>() << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_3) << QKeySequence(Qt::Key_Print),
-        KGlobalAccel::NoAutoloading);
-    KGlobalAccel::self()->setDefaultShortcut(screenshotFullAction,
-        QList<QKeySequence>() << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_3) << QKeySequence(Qt::Key_Print));
-    connect(screenshotFullAction, &QAction::triggered, this, []() {
-        if (!QProcess::startDetached(QStringLiteral("aevis-screenshot"), {}))
-            QProcess::startDetached(QStringLiteral("cutefish-screenshot"), {});
-    });
 }
-
