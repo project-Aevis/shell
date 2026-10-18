@@ -38,6 +38,7 @@
 StatusBar::StatusBar(QQmlEngine *engine)
     : ShellSurface(engine)
     , m_acticity(Activity::self())
+    , m_strutSpacer(new StrutSpacer(this))
 {
     const QString localeOrg = QFile::exists(QDir::homePath() + QStringLiteral("/.config/aevis/locale.conf"))
         ? QStringLiteral("aevis")
@@ -119,6 +120,13 @@ void StatusBar::updateGeometry()
     const QRect windowRect(rect.x(), rect.y(), rect.width(), Height);
     setGeometry(windowRect);
     setSurfacePosition(windowRect.topLeft());
+
+    if (m_strutSpacer) {
+        m_strutSpacer->setScreen(s);
+        m_strutSpacer->setEdge(Qt::TopEdge);
+        m_strutSpacer->setThickness(isVisible() ? Height : 0);
+    }
+
     updateViewStruts();
 }
 
@@ -131,9 +139,13 @@ void StatusBar::initState()
 {
     // The launcher is an ordinary full-screen window, so the status bar has
     // to step out of its way.
-    setVisible(!m_acticity->launchPad());
+    bool visible = !m_acticity->launchPad();
+    setVisible(visible);
     setPanelBehavior(m_acticity->launchPad() ? PanelBehavior::AllowCovering
                                              : PanelBehavior::StayAbove);
+    if (m_strutSpacer) {
+        m_strutSpacer->setThickness(visible ? Height : 0);
+    }
     updateViewStruts();
 }
 
