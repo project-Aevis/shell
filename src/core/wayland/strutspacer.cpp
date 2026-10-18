@@ -262,8 +262,8 @@ void StrutSpacer::handleConfigure(quint32 serial, quint32 width, quint32 height)
         return;
 
     if (m_bufferSize != size) {
-        QImage image(size, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
+        QImage image(size, QImage::Format_ARGB32);
+        image.fill(QColor(255, 255, 255, 0));
 
         auto buffer = pool->createBuffer(image);
         if (!buffer) {
