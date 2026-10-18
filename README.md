@@ -1,63 +1,44 @@
-# Shell
+# Aevis Desktop Shell
 
-Cutefish desktop shell: the status bar, dock, launcher and desktop in a single
-process, sharing one QML engine.
+Core desktop shell process for the Aevis Desktop Environment: status bar, dock, launcher, and desktop overview managed in a single high-performance process sharing a unified QML engine.
 
-Each component keeps its own window and its own D-Bus name, so the session
-behaves exactly as it did when they were separate programs.
+Part of the **[Project Aevis](https://github.com/project-Aevis)** suite.
 
-The desktop itself is not part of this repository. It is provided by the file
-manager as the `org.cutefish.filemanager.desktop` QML module; the shell only
-creates a window per screen and hands the desktop the screen it belongs to.
+## Architecture
+
+Each desktop component maintains its own window and D-Bus service identity while running in a shared runtime process.
+
+Desktop icon rendering and wallpaper management are provided by the file manager's `org.cutefish.filemanager.desktop` / `org.aevis.filemanager.desktop` module.
 
 ## Dependencies
 
-### Debian/Ubuntu
+### Debian / Ubuntu
 
-```bash
+```shell
 sudo apt install cmake extra-cmake-modules pkg-config build-essential \
-    qt6-base-dev qt6-declarative-dev qt6-tools-dev \
-    kwayland-dev
+    qt6-base-dev qt6-declarative-dev qt6-tools-dev kwayland-dev
 ```
 
-[FishUI](https://github.com/cutefishos/fishui) and
-[File Manager](https://github.com/cutefishos/filemanager) also need to be
-installed before building; the file manager supplies the desktop QML module the
-shell imports at runtime.
+Requires **[FishUI](https://github.com/project-Aevis/fishui)** and **[File Manager](https://github.com/project-Aevis/filemanager)** installed before building.
 
-## Build
+## Build and Install
 
-```bash
+```shell
 mkdir build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr ..
+cmake -DCMAKE_INSTALL_PREFIX=/usr ..
 make
-```
-
-## Run on Wayland
-
-The shell can run as a regular Qt Wayland client. Start it from an existing
-Wayland session (for example KWin Wayland) after the file manager and FishUI have
-been installed:
-
-```bash
-QT_QPA_PLATFORM=wayland ./build/cutefish-shell
-```
-
-Under KWin Wayland, the dock and active-window service use KDE's Plasma Window
-Management protocol for client discovery, focus, close, maximize and
-minimize/restore.
-
-Only one shell instance can run at a time because it owns the legacy Cutefish
-D-Bus service names. If another shell is already running, stop it before
-launching this binary.
-
-## Install
-
-```bash
 sudo make install
+```
+
+## Running under Wayland
+
+To start manually under an existing Wayland compositor (e.g. KWin Wayland):
+
+```shell
+QT_QPA_PLATFORM=wayland ./build/aevis-shell
 ```
 
 ## License
 
-This project has been licensed by GPLv3.
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
